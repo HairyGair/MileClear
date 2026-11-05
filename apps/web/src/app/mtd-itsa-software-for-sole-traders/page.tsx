@@ -560,7 +560,7 @@ export default function MtdItsaSoftwarePage() {
               can&apos;t be sent from the website). We post every change in our{" "}
               <Link
                 href="/updates"
-                style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
               >
                 release notes
               </Link>
@@ -760,7 +760,7 @@ export default function MtdItsaSoftwarePage() {
               <li>
                 <Link
                   href="/mtd-quarterly-update-deadlines"
-                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                  style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
                 >
                   MTD quarterly update deadlines 2026-27
                 </Link>
@@ -769,7 +769,7 @@ export default function MtdItsaSoftwarePage() {
               <li>
                 <Link
                   href="/do-i-need-making-tax-digital"
-                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                  style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
                 >
                   Do I need Making Tax Digital?
                 </Link>
@@ -778,7 +778,7 @@ export default function MtdItsaSoftwarePage() {
               <li>
                 <Link
                   href="/mtd-late-submission-penalties"
-                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                  style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
                 >
                   MTD late submission penalties
                 </Link>
@@ -787,7 +787,7 @@ export default function MtdItsaSoftwarePage() {
               <li>
                 <Link
                   href="/hmrc-mileage-rates"
-                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                  style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
                 >
                   HMRC mileage rates 2025-26 and 2026-27
                 </Link>
@@ -797,7 +797,7 @@ export default function MtdItsaSoftwarePage() {
               <li>
                 <Link
                   href="/business-mileage-guide"
-                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                  style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
                 >
                   Business mileage guide
                 </Link>
@@ -806,7 +806,7 @@ export default function MtdItsaSoftwarePage() {
               <li>
                 <Link
                   href="/what-counts-as-business-mileage"
-                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                  style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
                 >
                   What counts as business mileage
                 </Link>
@@ -816,7 +816,7 @@ export default function MtdItsaSoftwarePage() {
               <li>
                 <Link
                   href="/mileclear-vs-mileiq"
-                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                  style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}
                 >
                   MileClear vs MileIQ
                 </Link>

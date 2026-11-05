@@ -468,3 +468,21 @@
   .md__car { opacity: 0 !important; }
 }
 .md--held .md__phone { transform: none; }
+
+/* Pause button (WCAG 2.2.2): freezes every looping pulse inside the demo. */
+.md--paused *, .md--paused *::before, .md--paused *::after { animation-play-state: paused !important; }
+.md__pause {
+  display: block;
+  margin: 0.5rem auto 0;
+  padding: 0.5rem 0.9rem;
+  min-height: 36px;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.md__pause:hover { background: rgba(255, 255, 255, 0.08); }
+.md__pause:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }

@@ -141,11 +141,11 @@ export default function ClientListPage() {
     load();
   }, [load]);
 
-  // "/" focuses search.
+  // Ctrl+K (Cmd+K on a Mac) focuses search. A single-key shortcut would clash
+  // with speech input and screen readers (WCAG 2.1.4), so it needs a modifier.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (e.key === "/" && t && !["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         searchRef.current?.focus();
       }

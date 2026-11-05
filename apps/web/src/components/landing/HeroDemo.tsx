@@ -65,6 +65,9 @@ export default function HeroDemo() {
   });
   const [playing, setPlaying] = useState(false);
   const [held, setHeld] = useState(false);
+  /** The visitor's Pause button (WCAG 2.2.2). Stops the beat clock, the drive and the looping pulses. */
+  const [paused, setPaused] = useState(false);
+  const progressNow = useRef(0);
   const root = useRef<HTMLDivElement>(null);
   const tilt = useRef<HTMLDivElement>(null);
   const routeRef = useRef<SVGPathElement>(null);
@@ -74,6 +77,7 @@ export default function HeroDemo() {
 
   const recording = step === "recording";
   const saved = step === "arrived" || step === "sorted";
+  progressNow.current = progress;
   const miles = TRIP_MILES * progress;
   const seconds = TRIP_SECONDS * progress;
 
@@ -117,7 +121,7 @@ export default function HeroDemo() {
 
   // The beat clock. Arrived falls through to Business if nobody taps.
   useEffect(() => {
-    if (!playing || held) return;
+    if (!playing || held || paused) return;
     const next = ORDER[(ORDER.indexOf(step) + 1) % ORDER.length];
     timer.current = setTimeout(() => {
       if (step === "arrived") {
@@ -126,12 +130,19 @@ export default function HeroDemo() {
       go(next);
     }, BEATS[step]);
     return () => clearTimeout(timer.current);
-  }, [step, playing, held, go]);
+  }, [step, playing, held, paused, go]);
 
   // The drive: one eased progress value moves the line, the car and the counters.
   useEffect(() => {
-    if (step !== "recording" || held) return;
-    const started = performance.now();
+    if (step !== "recording" || held || paused) return;
+    // Resume from where a pause left it: invert the ease to find the time already spent.
+    let spent = 0;
+    for (let lo = 0, hi = 1, i = 0; i < 20; i++) {
+      spent = (lo + hi) / 2;
+      if (easeInOut(spent) < progressNow.current) lo = spent;
+      else hi = spent;
+    }
+    const started = performance.now() - spent * BEATS.recording;
     let frame = 0;
     const run = (now: number) => {
       const t = Math.min(1, (now - started) / BEATS.recording);
@@ -140,7 +151,7 @@ export default function HeroDemo() {
     };
     frame = requestAnimationFrame(run);
     return () => cancelAnimationFrame(frame);
-  }, [step, held]);
+  }, [step, held, paused]);
 
   // Keep the car on the line. Reads the drawn path, so it can never drift off it.
   useEffect(() => {
@@ -249,7 +260,7 @@ export default function HeroDemo() {
   return (
     <div
       ref={root}
-      className={`md md--${step}${held ? " md--held" : ""}`}
+      className={`md md--${step}${held ? " md--held" : ""}${paused ? " md--paused" : ""}`}
       onPointerMove={onMove}
       onPointerLeave={onLeave}
     >
@@ -479,6 +490,17 @@ export default function HeroDemo() {
       <p key={caption} className="md__caption">
         {caption}
       </p>
+
+      {!held && (
+        <button
+          type="button"
+          className="md__pause"
+          aria-pressed={paused}
+          onClick={() => setPaused((p) => !p)}
+        >
+          {paused ? "Play demo animation" : "Pause demo animation"}
+        </button>
+      )}
     </div>
   );
 }

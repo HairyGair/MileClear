@@ -64,7 +64,7 @@ html[data-release-banner="1"] .nav {
   background: #0a0f1a;
   flex-shrink: 0;
   box-shadow: 0 0 0 0 rgba(10, 15, 26, 0.6);
-  animation: release-banner-pulse 2s infinite;
+  animation: release-banner-pulse 2s 2;
 }
 
 @keyframes release-banner-pulse {
@@ -133,7 +133,6 @@ html[data-release-banner="1"] .nav {
 .release-banner__link:focus-visible {
   color: #0a0f1a;
   background-color: rgba(10, 15, 26, 0.08);
-  outline: none;
 }
 
 /* Hide "What's new" link on small mobile to save space; the X dismiss
@@ -159,7 +158,6 @@ html[data-release-banner="1"] .nav {
 .release-banner__cta:hover,
 .release-banner__cta:focus-visible {
   background: #1a1f2e;
-  outline: none;
 }
 
 .release-banner__dismiss {
@@ -181,5 +179,12 @@ html[data-release-banner="1"] .nav {
 .release-banner__dismiss:focus-visible {
   color: #0a0f1a;
   background-color: rgba(10, 15, 26, 0.08);
-  outline: none;
+}
+
+/* Visible keyboard focus: 2px dark ring against the amber bar (well over 3:1). */
+.release-banner__link:focus-visible,
+.release-banner__cta:focus-visible,
+.release-banner__dismiss:focus-visible {
+  outline: 2px solid #0a0f1a;
+  outline-offset: 2px;
 }

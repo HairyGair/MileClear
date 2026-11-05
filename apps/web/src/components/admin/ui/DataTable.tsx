@@ -141,6 +141,7 @@ export function DataTable<T>({
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 onKeyDown={onRowClick ? (e) => onRowKey(e, row) : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
+                role={onRowClick ? "button" : undefined}
               >
                 {columns.map((c) => {
                   const align = c.align ?? (c.numeric ? "right" : "left");

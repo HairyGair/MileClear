@@ -123,7 +123,7 @@ function AboutSection() {
         earnings tracking with platform tagging for Uber, Deliveroo, Amazon
         Flex, and more. Available free on the App Store with a Pro tier at
         £4.99/month for tax exports and business intelligence.{" "}
-        <a href="/about" style={{ color: "var(--amber-400)", textDecoration: "none" }}>
+        <a href="/about" style={{ color: "var(--amber-400)", textDecoration: "underline", textUnderlineOffset: "0.18em" }}>
           Learn more about MileClear &rarr;
         </a>
       </p>

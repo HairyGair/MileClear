@@ -41,23 +41,26 @@ function WorkCalendarCardImpl(_props: { mode?: "work" | "personal" }): React.Rea
         <span className={s.weekLabel}>{label}</span>
         <Button variant="ghost" size="sm" icon="chevron-forward" aria-label="Next month" onClick={() => move(1)} />
       </div>
-      <div className={s.cal} role="grid" aria-label={`Miles driven each day in ${label}`}>
+      <div className={s.cal} role="list" aria-label={`Miles driven each day in ${label}`}>
         {DAYS_MON_FIRST.map((d) => (
-          <span key={d} className={s.calHead} role="columnheader">
+          <span key={d} className={s.calHead} aria-hidden="true">
             {d.slice(0, 2)}
           </span>
         ))}
         {Array.from({ length: lead }, (_, i) => (
-          <span key={`l${i}`} />
+          <span key={`l${i}`} aria-hidden="true" />
         ))}
         {Array.from({ length: daysIn }, (_, i) => {
           const day = i + 1;
           const key = `${cursor.y}-${String(cursor.m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const entry = byDate.get(key);
           const v = entry?.miles ?? 0;
+          const spoken = new Date(cursor.y, cursor.m - 1, day).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+          const miles = v > 0 ? `${Math.round(v * 10) / 10} miles` : "no driving";
           return (
-            <span key={key} className={s.calDay} data-level={level(v)} role="gridcell" title={`${day} ${label}: ${v > 0 ? `${Math.round(v * 10) / 10} mi` : "no driving"}`}>
-              {day}
+            <span key={key} className={s.calDay} data-level={level(v)} role="listitem">
+              <span aria-hidden="true">{day}</span>
+              <span className="mc-sr-only">{`${spoken}: ${miles}`}</span>
             </span>
           );
         })}
