@@ -4,7 +4,9 @@ import "../dashboard/dashboard.css";
 import "./signin.css";
 
 export const metadata: Metadata = {
-  title: "Sign In",
+  // A template, not a plain string: a plain title here would stop the
+  // " | MileClear" suffix reaching the create account, reset and verify titles.
+  title: { default: "Sign In", template: "%s | MileClear" },
   robots: {
     index: false,
     follow: false,
