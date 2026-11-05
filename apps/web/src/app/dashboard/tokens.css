@@ -10,6 +10,9 @@
   --mc-surface: #0a1120;
   --mc-border: rgba(255, 255, 255, 0.06);
   --mc-hairline: rgba(255, 255, 255, 0.08);
+  /* Edges of form fields, chips and switches: 3.47:1 or better on every surface (WCAG 1.4.11) */
+  --mc-control-border: #5b6b82;
+  --mc-control-border-hover: #7a8aa0;
   --mc-icon-tile: rgba(255, 255, 255, 0.04);
   --mc-overlay: rgba(0, 0, 0, 0.6);
 

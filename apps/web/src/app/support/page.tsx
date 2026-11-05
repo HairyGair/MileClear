@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
@@ -33,6 +33,7 @@ const faqSections = FAQ_IDS.map(({ title, ids }) => ({
 const faqs = faqSections.flatMap((s) => s.faqs);
 
 export default function SupportPage() {
+  const uid = useId();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
@@ -159,8 +160,10 @@ export default function SupportPage() {
                 ) : (
                   <form onSubmit={handleSubmit} className="support__form">
                     <div className="support__field">
-                      <label>Name</label>
+                      <label htmlFor={`${uid}-name`}>Name</label>
                       <input
+                        id={`${uid}-name`}
+                        autoComplete="name"
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -170,8 +173,10 @@ export default function SupportPage() {
                       />
                     </div>
                     <div className="support__field">
-                      <label>Email</label>
+                      <label htmlFor={`${uid}-email`}>Email</label>
                       <input
+                        id={`${uid}-email`}
+                        autoComplete="email"
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -181,8 +186,9 @@ export default function SupportPage() {
                       />
                     </div>
                     <div className="support__field">
-                      <label>Message</label>
+                      <label htmlFor={`${uid}-message`}>Message</label>
                       <textarea
+                        id={`${uid}-message`}
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         required

@@ -186,7 +186,7 @@
   padding: 0.85rem 1rem;
   color: var(--text-primary);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-strong);
+  border: 1px solid #5b6b82;
   border-radius: var(--r-md);
   outline: none;
   font-family: var(--font-body);
@@ -197,6 +197,7 @@
 .support__input::placeholder,
 .support__textarea::placeholder {
   color: var(--text-muted);
+  opacity: 1;
 }
 
 .support__input:focus,

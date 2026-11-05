@@ -9,6 +9,7 @@
   --si-surface: #0a1120;
   --si-border: rgba(255, 255, 255, 0.10);
   --si-hairline: rgba(255, 255, 255, 0.06);
+  --si-control-border: #5b6b82;
   --si-amber: #f5a623;
   --si-amber-hover: #ffb84a;
   --si-text-1: #f0f2f5;
@@ -190,7 +191,7 @@
   height: 48px;
   box-sizing: border-box;
   border-radius: 12px;
-  border: 1px solid var(--si-border);
+  border: 1px solid var(--si-control-border);
   background: var(--si-surface);
   color: var(--si-text-1);
   font-family: inherit;
@@ -199,12 +200,18 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .signin__input::placeholder {
-  color: #64748b;
+  color: var(--si-text-3);
+  opacity: 1;
 }
 .signin__input:focus {
   outline: none;
-  border-color: rgba(245, 166, 35, 0.55);
+  border-color: var(--si-amber);
   box-shadow: 0 0 0 4px rgba(245, 166, 35, 0.12);
+}
+.signin__hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--si-text-2);
 }
 .signin__input--password {
   padding-right: 52px;

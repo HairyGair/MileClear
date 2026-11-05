@@ -20,13 +20,13 @@ export function AuthField({
 }
 
 /** A password field with a show/hide button. */
-export function AuthPasswordField({ label, aside, ...input }: InputProps & { label: string; aside?: ReactNode }) {
+export function AuthPasswordField({ label, aside, hint, ...input }: InputProps & { label: string; aside?: ReactNode; hint?: string }) {
   const [show, setShow] = useState(false);
   return (
     <div className="signin__field">
       <FieldLabel id={input.id} label={label} aside={aside} />
       <div className="signin__input-wrap">
-        <input className="signin__input signin__input--password" type={show ? "text" : "password"} {...input} />
+        <input className="signin__input signin__input--password" type={show ? "text" : "password"} aria-describedby={hint ? `${input.id}-hint` : undefined} {...input} />
         <button
           type="button"
           className="signin__eye"
@@ -48,6 +48,11 @@ export function AuthPasswordField({ label, aside, ...input }: InputProps & { lab
           )}
         </button>
       </div>
+      {hint && (
+        <p id={`${input.id}-hint`} className="signin__hint">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

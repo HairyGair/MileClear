@@ -205,7 +205,7 @@ function TopBar() {
         {meta.back && (
           <Link href={meta.back.href} className="mc-topbar__back">
             <Icon name="chevron-back" size={20} />
-            <span>{meta.back.label}</span>
+            <span className="mc-topbar__back-label">{meta.back.label}</span>
           </Link>
         )}
         <h1 className="mc-topbar__title">{meta.title}</h1>

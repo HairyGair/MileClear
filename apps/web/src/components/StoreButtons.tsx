@@ -54,11 +54,10 @@ export default function StoreButtons({
         target="_blank"
         rel="noopener noreferrer"
         className="store-btn store-btn--apple"
-        aria-label="Download MileClear on the App Store"
       >
         <AppleLogo />
         <span className="store-btn__text">
-          <span className="store-btn__eyebrow">Download free on the</span>
+          <span className="store-btn__eyebrow">Download free on the</span>{" "}
           <span className="store-btn__name">App Store</span>
         </span>
       </a>
@@ -69,11 +68,10 @@ export default function StoreButtons({
             target="_blank"
             rel="noopener noreferrer"
             className="store-btn store-btn--play"
-            aria-label="Get MileClear on Google Play"
           >
             <PlayLogo />
             <span className="store-btn__text">
-              <span className="store-btn__eyebrow">Get it free on</span>
+              <span className="store-btn__eyebrow">Get it free on</span>{" "}
               <span className="store-btn__name">Google Play</span>
             </span>
           </a>
@@ -81,11 +79,10 @@ export default function StoreButtons({
           <Link
             href={ANDROID_HREF}
             className="store-btn store-btn--play"
-            aria-label="MileClear for Android, coming to Google Play"
           >
             <PlayLogo />
             <span className="store-btn__text">
-              <span className="store-btn__eyebrow">Coming to</span>
+              <span className="store-btn__eyebrow">Coming to</span>{" "}
               <span className="store-btn__name">Google Play</span>
             </span>
             <span className="store-btn__tag">Soon</span>

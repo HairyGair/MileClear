@@ -104,19 +104,19 @@ export function DataTable<R>({
             <tr
               key={rowKey(r)}
               className={cx(onRowClick && "is-click")}
-              tabIndex={onRowClick ? 0 : undefined}
               onClick={onRowClick ? () => onRowClick(r) : undefined}
-              onKeyDown={
-                onRowClick
-                  ? (e) => {
-                      if (e.key === "Enter") onRowClick(r);
-                    }
-                  : undefined
-              }
             >
-              {columns.map((c) => (
+              {columns.map((c, i) => (
                 <td key={c.key} className={cx(c.align === "right" && "is-right mc-num", c.hideBelow && `mc-hide-lt-${c.hideBelow}`)}>
-                  {cell(c, r)}
+                  {onRowClick && i === 0 ? (
+                    // A real button in the first cell so keyboard and screen reader
+                    // users can open the row. Its click bubbles to the row handler.
+                    <button type="button" className="mc-table__rowbtn">
+                      {cell(c, r)}
+                    </button>
+                  ) : (
+                    cell(c, r)
+                  )}
                 </td>
               ))}
             </tr>
