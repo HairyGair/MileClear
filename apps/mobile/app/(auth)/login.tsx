@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../lib/auth/context";
 import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
 import { RouteHero } from "../../components/auth/RouteHero";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
 import { useErrorState } from "../../lib/a11y/announce";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
@@ -38,6 +38,9 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [heroWidth, setHeroWidth] = useState<number | null>(null);
+  // The size of the screen as laid out. The window size above can stay on the
+  // old orientation after the phone is turned, so this decides portrait or sideways.
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
   const [mode, setMode] = useState<"choose" | "email">("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -103,13 +106,14 @@ export default function LoginScreen() {
 
   // Held sideways the picture would fill the screen, so shrink it there only.
   const baseHero = mode === "email" ? HERO_HEIGHT_EMAIL : HERO_HEIGHT;
-  const landscape = screenWidth > screenHeight;
+  const landscape = box ? box.w > box.h : screenWidth > screenHeight;
   const heroHeight = (landscape ? Math.min(baseHero, 130) : baseHero) + insets.top;
 
   return (
     <KeyboardAvoidingView
       style={s.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
     >
       <ScrollView
         contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 24 }]}
@@ -126,14 +130,14 @@ export default function LoginScreen() {
               resizeMode="contain"
               accessible={false}
             />
-            <Text style={s.brandName} accessibilityRole="header">
+            <Text maxFontSizeMultiplier={1.3} style={s.brandName} accessibilityRole="header">
               Mile<Text style={s.brandAccent}>Clear</Text>
             </Text>
           </View>
           {mode === "choose" && (
-            <View style={s.chip} accessible={false} importantForAccessibility="no-hide-descendants">
-              <Text style={s.chipLabel}>Recorded by itself</Text>
-              <Text style={s.chipValue}>
+            <View style={[s.chip, landscape && s.chipSideways]} accessible={false} importantForAccessibility="no-hide-descendants">
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.chipLabel}>Recorded by itself</Text>
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.chipValue}>
                 12.4 mi <Text style={s.chipAccent}>· Business</Text>
               </Text>
             </View>
@@ -143,15 +147,15 @@ export default function LoginScreen() {
         <View style={s.body}>
           {mode === "choose" ? (
             <>
-              <Text style={s.headline} accessibilityRole="header">
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.headline} accessibilityRole="header">
                 Every mile,{"\n"}counted.
               </Text>
-              <Text style={s.sub}>
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.sub}>
                 MileClear records your drives on its own, so your mileage claim is ready when you need it.
               </Text>
             </>
           ) : (
-            <Text style={s.title} accessibilityRole="header">Sign in with email</Text>
+            <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.title} accessibilityRole="header">Sign in with email</Text>
           )}
 
           {/* Always mounted: TalkBack only reads changes to a live region that is already on screen. */}
@@ -159,7 +163,7 @@ export default function LoginScreen() {
           <View accessibilityLiveRegion="polite" collapsable={false}>
             {error ? (
               <View style={s.errorWrap} accessibilityRole="alert">
-                <Text style={s.errorText}>{error}</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.errorText}>{error}</Text>
               </View>
             ) : null}
           </View>
@@ -193,14 +197,14 @@ export default function LoginScreen() {
                 accessibilityLabel="Sign in with email"
               >
                 <Ionicons name="mail-outline" size={19} color={colors.text1} />
-                <Text style={s.outlineButtonText}>Sign in with email</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.outlineButtonText}>Sign in with email</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={s.form}>
               <View style={s.field}>
-                <Text style={s.label}>Email</Text>
-                <TextInput
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Email</Text>
+                <TextInput maxFontSizeMultiplier={fontScaleCap.body}
                   style={[s.input, focusedField === "email" && s.inputFocused]}
                   value={email}
                   onChangeText={setEmail}
@@ -223,19 +227,19 @@ export default function LoginScreen() {
 
               <View style={s.field}>
                 <View style={s.labelRow}>
-                  <Text style={s.label}>Password</Text>
+                  <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Password</Text>
                   <Link href="/(auth)/forgot-password" asChild>
                     <TouchableOpacity
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                       accessibilityRole="link"
                       accessibilityLabel="Forgot password"
                     >
-                      <Text style={s.forgotText}>Forgot?</Text>
+                      <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.forgotText}>Forgot?</Text>
                     </TouchableOpacity>
                   </Link>
                 </View>
                 <View>
-                  <TextInput
+                  <TextInput maxFontSizeMultiplier={fontScaleCap.body}
                     ref={passwordRef}
                     style={[s.input, s.passwordInput, focusedField === "password" && s.inputFocused]}
                     value={password}
@@ -277,7 +281,7 @@ export default function LoginScreen() {
                 {loading ? (
                   <ActivityIndicator color={colors.bg} accessibilityLabel="Signing in" />
                 ) : (
-                  <Text style={s.primaryButtonText}>Sign in</Text>
+                  <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.primaryButtonText}>Sign in</Text>
                 )}
               </TouchableOpacity>
 
@@ -290,7 +294,7 @@ export default function LoginScreen() {
                 accessibilityLabel="Other ways to sign in"
               >
                 <Ionicons name="chevron-back" size={16} color={colors.text2} />
-                <Text style={s.backLinkText}>Other ways to sign in</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.backLinkText}>Other ways to sign in</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -298,21 +302,21 @@ export default function LoginScreen() {
           <View style={s.spacer} />
 
           <View style={s.footer}>
-            <Text style={s.footerText}>New to MileClear? </Text>
+            <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.footerText}>New to MileClear? </Text>
             <Link href="/(auth)/register" asChild>
               <TouchableOpacity accessibilityRole="link" accessibilityLabel="Create an account">
-                <Text style={s.link}>Create an account</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.link}>Create an account</Text>
               </TouchableOpacity>
             </Link>
           </View>
           {mode === "choose" && (
-            <Text style={s.terms}>
+            <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.terms}>
               By continuing you agree to our{" "}
-              <Text style={s.termsLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms").catch(() => {})} accessibilityRole="link">
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.termsLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms").catch(() => {})} accessibilityRole="link">
                 terms
               </Text>{" "}
               and{" "}
-              <Text style={s.termsLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy").catch(() => {})} accessibilityRole="link">
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.termsLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy").catch(() => {})} accessibilityRole="link">
                 privacy policy
               </Text>
               .
@@ -363,6 +367,7 @@ const s = StyleSheet.create({
     position: "absolute",
     right: 24,
     bottom: 64,
+    maxWidth: "60%",
     backgroundColor: "rgba(10,17,32,0.92)",
     borderWidth: 1,
     borderColor: colors.hairline,
@@ -370,6 +375,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 2,
+  },
+  // Held sideways the picture is short, so sit the card near its foot instead
+  // of letting larger text push it off the top.
+  chipSideways: {
+    bottom: 12,
   },
   chipLabel: {
     fontSize: 12,
@@ -446,8 +456,10 @@ const s = StyleSheet.create({
   },
   labelRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "baseline",
+    columnGap: 12,
   },
   label: {
     fontSize: 14,
@@ -535,6 +547,7 @@ const s = StyleSheet.create({
   },
   footer: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "center",
     alignItems: "center",
   },

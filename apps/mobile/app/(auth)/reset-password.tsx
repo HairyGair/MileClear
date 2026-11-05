@@ -13,7 +13,8 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { useSafeScroll } from "../../lib/a11y/useSafeScroll";
 import { useErrorState } from "../../lib/a11y/announce";
 
 const AMBER = colors.amber;
@@ -25,6 +26,7 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 
 export default function ResetPasswordScreen() {
+  const safe = useSafeScroll();
   const { resetPassword } = useAuth();
   const { email: emailParam } = useLocalSearchParams<{ email: string }>();
   const [email] = useState(emailParam || "");
@@ -72,7 +74,9 @@ export default function ResetPasswordScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={s.scrollContent}
+        onLayout={safe.onLayout}
+        onContentSizeChange={safe.onContentSizeChange}
+        contentContainerStyle={[s.scrollContent, safe.padding]}
         keyboardShouldPersistTaps="handled"
       >
         {/* Brand */}
@@ -84,15 +88,15 @@ export default function ResetPasswordScreen() {
             accessible={false}
           />
           <View style={s.brandText}>
-            <Text style={s.brandName}>Mile</Text>
-            <Text style={s.brandNameAccent}>Clear</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.brandName}>Mile</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.brandNameAccent}>Clear</Text>
           </View>
         </View>
 
         {/* Card */}
         <View style={s.card}>
-          <Text style={s.title} accessibilityRole="header">Enter reset code</Text>
-          <Text style={s.subtitle}>
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.title} accessibilityRole="header">Enter reset code</Text>
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.subtitle}>
             We sent a 6-digit code to {email || "your email"}. Enter it below
             with your new password.
           </Text>
@@ -102,13 +106,13 @@ export default function ResetPasswordScreen() {
           <View accessibilityLiveRegion="polite" collapsable={false}>
             {error ? (
               <View style={s.errorWrap} accessibilityRole="alert">
-                <Text style={s.errorText}>{error}</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.errorText}>{error}</Text>
               </View>
             ) : null}
           </View>
 
-          <Text style={s.label}>Reset code</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Reset code</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={s.codeInput}
             value={code}
             onChangeText={(text) => setCode(text.replace(/[^0-9]/g, "").slice(0, 6))}
@@ -123,8 +127,8 @@ export default function ResetPasswordScreen() {
             accessibilityLabel="Password reset code"
           />
 
-          <Text style={s.label}>New password</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>New password</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={inputStyle("password")}
             value={newPassword}
             onChangeText={setNewPassword}
@@ -139,8 +143,8 @@ export default function ResetPasswordScreen() {
             accessibilityLabel="New password"
           />
 
-          <Text style={s.label}>Confirm new password</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Confirm new password</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={inputStyle("confirm")}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -167,18 +171,18 @@ export default function ResetPasswordScreen() {
             {loading ? (
               <ActivityIndicator color={BG} accessibilityLabel="Loading" />
             ) : (
-              <Text style={s.buttonText}>Reset password</Text>
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.buttonText}>Reset password</Text>
             )}
           </TouchableOpacity>
 
           <View style={s.footer}>
-            <Text style={s.footerText}>Back to </Text>
+            <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.footerText}>Back to </Text>
             <TouchableOpacity
               onPress={() => router.replace("/(auth)/login")}
               accessibilityRole="link"
               accessibilityLabel="Sign in"
             >
-              <Text style={s.link}>Sign in</Text>
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.link}>Sign in</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -320,6 +324,8 @@ const s = StyleSheet.create({
   },
   footer: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
     justifyContent: "center",
     marginTop: 24,
   },

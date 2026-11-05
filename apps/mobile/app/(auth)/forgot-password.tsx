@@ -13,7 +13,8 @@ import {
 } from "react-native";
 import { Link, router } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { useSafeScroll } from "../../lib/a11y/useSafeScroll";
 import { useErrorState } from "../../lib/a11y/announce";
 
 const AMBER = colors.amber;
@@ -25,6 +26,7 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 
 export default function ForgotPasswordScreen() {
+  const safe = useSafeScroll();
   const { forgotPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [error, setError] = useErrorState();
@@ -58,7 +60,9 @@ export default function ForgotPasswordScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={s.scrollContent}
+        onLayout={safe.onLayout}
+        onContentSizeChange={safe.onContentSizeChange}
+        contentContainerStyle={[s.scrollContent, safe.padding]}
         keyboardShouldPersistTaps="handled"
       >
         {/* Brand */}
@@ -70,15 +74,15 @@ export default function ForgotPasswordScreen() {
             accessible={false}
           />
           <View style={s.brandText}>
-            <Text style={s.brandName}>Mile</Text>
-            <Text style={s.brandNameAccent}>Clear</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.brandName}>Mile</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.brandNameAccent}>Clear</Text>
           </View>
         </View>
 
         {/* Card */}
         <View style={s.card}>
-          <Text style={s.title} accessibilityRole="header">Forgot password?</Text>
-          <Text style={s.subtitle}>
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.title} accessibilityRole="header">Forgot password?</Text>
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.subtitle}>
             Enter your email and we'll send you a code to reset your password.
           </Text>
 
@@ -87,13 +91,13 @@ export default function ForgotPasswordScreen() {
           <View accessibilityLiveRegion="polite" collapsable={false}>
             {error ? (
               <View style={s.errorWrap} accessibilityRole="alert">
-                <Text style={s.errorText}>{error}</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.errorText}>{error}</Text>
               </View>
             ) : null}
           </View>
 
-          <Text style={s.label}>Email</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Email</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={[
               s.input,
               focusedField === "email" && s.inputFocused,
@@ -126,18 +130,18 @@ export default function ForgotPasswordScreen() {
             {loading ? (
               <ActivityIndicator color={BG} accessibilityLabel="Loading" />
             ) : (
-              <Text style={s.buttonText}>Send reset code</Text>
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.buttonText}>Send reset code</Text>
             )}
           </TouchableOpacity>
 
           <View style={s.footer}>
-            <Text style={s.footerText}>Remember your password? </Text>
+            <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.footerText}>Remember your password? </Text>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity
                 accessibilityRole="link"
                 accessibilityLabel="Sign in"
               >
-                <Text style={s.link}>Sign in</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.link}>Sign in</Text>
               </TouchableOpacity>
             </Link>
           </View>
@@ -266,6 +270,8 @@ const s = StyleSheet.create({
   },
   footer: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
     justifyContent: "center",
     marginTop: 24,
   },

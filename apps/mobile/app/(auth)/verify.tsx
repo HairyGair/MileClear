@@ -12,7 +12,8 @@ import {
   Image,
 } from "react-native";
 import { useAuth } from "../../lib/auth/context";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { useSafeScroll } from "../../lib/a11y/useSafeScroll";
 import { useErrorState } from "../../lib/a11y/announce";
 
 const AMBER = colors.amber;
@@ -24,6 +25,7 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 
 export default function VerifyScreen() {
+  const safe = useSafeScroll();
   const { completeAuth, sendVerificationCode, verifyEmail } = useAuth();
   const [code, setCode] = useState("");
   const [error, setError] = useErrorState();
@@ -91,7 +93,9 @@ export default function VerifyScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={s.scrollContent}
+        onLayout={safe.onLayout}
+        onContentSizeChange={safe.onContentSizeChange}
+        contentContainerStyle={[s.scrollContent, safe.padding]}
         keyboardShouldPersistTaps="handled"
       >
         {/* Brand */}
@@ -103,15 +107,15 @@ export default function VerifyScreen() {
             accessible={false}
           />
           <View style={s.brandText}>
-            <Text style={s.brandName}>Mile</Text>
-            <Text style={s.brandNameAccent}>Clear</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.brandName}>Mile</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.brandNameAccent}>Clear</Text>
           </View>
         </View>
 
         {/* Card */}
         <View style={s.card}>
-          <Text style={s.title} accessibilityRole="header">Check your email</Text>
-          <Text style={s.subtitle}>
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.title} accessibilityRole="header">Check your email</Text>
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.subtitle}>
             {sent
               ? "We've sent a 6-digit verification code to your email address."
               : "Sending verification code..."}
@@ -122,13 +126,13 @@ export default function VerifyScreen() {
           <View accessibilityLiveRegion="polite" collapsable={false}>
             {error ? (
               <View style={s.errorWrap} accessibilityRole="alert">
-                <Text style={s.errorText}>{error}</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.errorText}>{error}</Text>
               </View>
             ) : null}
           </View>
 
-          <Text style={s.label}>Verification code</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Verification code</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             ref={inputRef}
             style={s.input}
             value={code}
@@ -156,7 +160,7 @@ export default function VerifyScreen() {
             {loading ? (
               <ActivityIndicator color={BG} accessibilityLabel="Loading" />
             ) : (
-              <Text style={s.buttonText}>Verify</Text>
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.buttonText}>Verify</Text>
             )}
           </TouchableOpacity>
 
@@ -176,7 +180,7 @@ export default function VerifyScreen() {
             {resendLoading ? (
               <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Loading" />
             ) : (
-              <Text
+              <Text maxFontSizeMultiplier={fontScaleCap.body}
                 style={[
                   s.resendText,
                   resendCooldown > 0 && s.resendDisabled,
@@ -196,7 +200,7 @@ export default function VerifyScreen() {
             accessibilityRole="button"
             accessibilityLabel="Skip verification for now"
           >
-            <Text style={s.skipText}>Skip for now</Text>
+            <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.skipText}>Skip for now</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

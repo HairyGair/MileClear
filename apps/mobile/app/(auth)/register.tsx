@@ -16,7 +16,8 @@ import { Link, router } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
 import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
 import { getDatabase } from "../../lib/db";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { useSafeScroll } from "../../lib/a11y/useSafeScroll";
 import { useErrorState } from "../../lib/a11y/announce";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
@@ -31,6 +32,7 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 
 export default function RegisterScreen() {
+  const safe = useSafeScroll();
   const { register, loginWithApple, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -126,7 +128,9 @@ export default function RegisterScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={s.scrollContent}
+        onLayout={safe.onLayout}
+        onContentSizeChange={safe.onContentSizeChange}
+        contentContainerStyle={[s.scrollContent, safe.padding]}
         keyboardShouldPersistTaps="handled"
       >
         {/* Brand */}
@@ -138,21 +142,21 @@ export default function RegisterScreen() {
             accessible={false}
           />
           <View style={s.brandText}>
-            <Text style={s.brandName}>Mile</Text>
-            <Text style={s.brandNameAccent}>Clear</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.brandName}>Mile</Text>
+            <Text maxFontSizeMultiplier={1.3} style={s.brandNameAccent}>Clear</Text>
           </View>
         </View>
 
         {/* Form card */}
         <View style={s.card}>
-          <Text style={s.title} accessibilityRole="header">Get started</Text>
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.title} accessibilityRole="header">Get started</Text>
 
           {/* Always mounted: TalkBack only reads changes to a live region that is already on screen. */}
           {/* collapsable={false}: a View with no style can be flattened away, taking the live region with it. */}
           <View accessibilityLiveRegion="polite" collapsable={false}>
             {error ? (
               <View style={s.errorWrap} accessibilityRole="alert">
-                <Text style={s.errorText}>{error}</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.errorText}>{error}</Text>
               </View>
             ) : null}
           </View>
@@ -180,12 +184,12 @@ export default function RegisterScreen() {
           {/* Divider */}
           <View style={s.divider}>
             <View style={s.dividerLine} />
-            <Text style={s.dividerText}>or</Text>
+            <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.dividerText}>or</Text>
             <View style={s.dividerLine} />
           </View>
 
-          <Text style={s.label}>Email</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Email</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={inputStyle("email")}
             value={email}
             onChangeText={setEmail}
@@ -202,8 +206,8 @@ export default function RegisterScreen() {
             accessibilityLabel="Email address"
           />
 
-          <Text style={s.label}>Display name</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Display name</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={inputStyle("name")}
             value={displayName}
             onChangeText={setDisplayName}
@@ -219,8 +223,8 @@ export default function RegisterScreen() {
             accessibilityLabel="Display name"
           />
 
-          <Text style={s.label}>Password</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Password</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={inputStyle("password")}
             value={password}
             onChangeText={setPassword}
@@ -235,8 +239,8 @@ export default function RegisterScreen() {
             accessibilityLabel="Password"
           />
 
-          <Text style={s.label}>Confirm password</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Confirm password</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={inputStyle("confirm")}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -251,8 +255,8 @@ export default function RegisterScreen() {
             accessibilityLabel="Confirm password"
           />
 
-          <Text style={s.label}>Invite code (optional)</Text>
-          <TextInput
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.label}>Invite code (optional)</Text>
+          <TextInput maxFontSizeMultiplier={fontScaleCap.body}
             style={inputStyle("referral")}
             value={referralCode}
             onChangeText={(t) => setReferralCode(t.toUpperCase())}
@@ -268,9 +272,9 @@ export default function RegisterScreen() {
           />
 
           {/* Terms notice */}
-          <Text style={s.termsText}>
+          <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.termsText}>
             By signing up, you agree to our{" "}
-            <Text
+            <Text maxFontSizeMultiplier={fontScaleCap.body}
               style={s.termsLink}
               onPress={() => Linking.openURL("https://mileclear.com/terms")}
               accessibilityRole="link"
@@ -278,7 +282,7 @@ export default function RegisterScreen() {
               Terms of Service
             </Text>
             {" "}and{" "}
-            <Text
+            <Text maxFontSizeMultiplier={fontScaleCap.body}
               style={s.termsLink}
               onPress={() => Linking.openURL("https://mileclear.com/privacy")}
               accessibilityRole="link"
@@ -299,18 +303,18 @@ export default function RegisterScreen() {
             {loading ? (
               <ActivityIndicator color={BG} accessibilityLabel="Loading" />
             ) : (
-              <Text style={s.buttonText}>Create account</Text>
+              <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.buttonText}>Create account</Text>
             )}
           </TouchableOpacity>
 
           <View style={s.footer}>
-            <Text style={s.footerText}>Already have an account? </Text>
+            <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.footerText}>Already have an account? </Text>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity
                 accessibilityRole="link"
                 accessibilityLabel="Sign in"
               >
-                <Text style={s.link}>Sign in</Text>
+                <Text maxFontSizeMultiplier={fontScaleCap.body} style={s.link}>Sign in</Text>
               </TouchableOpacity>
             </Link>
           </View>
@@ -438,6 +442,8 @@ const s = StyleSheet.create({
   },
   footer: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
     justifyContent: "center",
     marginTop: 24,
   },
