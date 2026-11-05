@@ -1428,16 +1428,16 @@ export default function TripsScreen() {
             {/* Line 1: the route. Both ends are already short; if it still
                 won't fit, the first place gives way so the destination reads. */}
             {fromLabel && toLabel ? (
-              <View style={styles.routeRow} accessible={false}>
-                <Text style={[styles.routeTitle, styles.routeFrom]} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+              <View style={[styles.routeRow, largeText && styles.routeRowStacked]} accessible={false}>
+                <Text style={[styles.routeTitle, styles.routeFrom]} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>
                   {fromLabel}
                 </Text>
-                <Text style={[styles.routeTitle, styles.routeTo]} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
-                  {` to ${toLabel}`}
+                <Text style={[styles.routeTitle, styles.routeTo]} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>
+                  {largeText ? `to ${toLabel}` : ` to ${toLabel}`}
                 </Text>
               </View>
             ) : (
-              <Text style={styles.routeTitle} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text style={styles.routeTitle} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>
                 {route}
               </Text>
             )}
@@ -1894,14 +1894,16 @@ export default function TripsScreen() {
 
             {/* One slate track, four segments (Home's mode pill). To sort
                 carries the same count as the tab badge. */}
-            <View style={styles.segmented} accessibilityRole="tablist">
+            {/* At large text the four words no longer fit in one row ("Al/l",
+                "Busines/s"): let them wrap onto a second row instead. */}
+            <View style={[styles.segmented, largeText && styles.segmentedWrap]} accessibilityRole="tablist">
               {FILTERS.map((f) => {
                 const selected = filter === f.value;
                 const count = f.value === "unclassified" ? unclassifiedCount : 0;
                 return (
                   <TouchableOpacity
                     key={f.label}
-                    style={[styles.segment, selected && styles.segmentActive]}
+                    style={[styles.segment, largeText && styles.segmentLarge, selected && styles.segmentActive]}
                     onPress={() => handleFilterChange(f.value)}
                     accessibilityRole="tab"
                     accessibilityLabel={
@@ -2729,6 +2731,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "transparent",
   },
+  segmentedWrap: { flexWrap: "wrap" },
+  segmentLarge: { flexShrink: 0, paddingHorizontal: 12 },
   segmentActive: {
     backgroundColor: colors.personal,
     borderColor: colors.personalEdge,
@@ -2923,6 +2927,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "baseline",
   },
+  // At large text each place gets its own full-width line instead of "Ho... to Sunderla...".
+  routeRowStacked: { flexDirection: "column", alignItems: "flex-start" },
   routeTitle: {
     fontSize: 15,
     fontFamily: fonts.semibold,

@@ -267,7 +267,7 @@ export function DestinationPicker({
   const showingResults = !searchLocked && query.trim().length >= SEARCH_MIN_CHARS;
 
   return (
-    <View style={[s.page, { paddingTop: insets.top + spacing.sm }]}>
+    <View style={[s.page, { paddingTop: insets.top + spacing.sm, paddingLeft: insets.left, paddingRight: insets.right }]}>
       <View style={s.header}>
         <Text style={s.title} maxFontSizeMultiplier={fontScaleCap.heading}>
           Directions
