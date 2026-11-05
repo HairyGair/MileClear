@@ -150,11 +150,14 @@ export default function LoginScreen() {
             <Text style={s.title} accessibilityRole="header">Sign in with email</Text>
           )}
 
-          {error ? (
-            <View style={s.errorWrap} accessibilityLiveRegion="polite" accessibilityRole="alert">
-              <Text style={s.errorText}>{error}</Text>
-            </View>
-          ) : null}
+          {/* Always mounted: TalkBack only reads changes to a live region that is already on screen. */}
+          <View accessibilityLiveRegion="polite">
+            {error ? (
+              <View style={s.errorWrap} accessibilityRole="alert">
+                <Text style={s.errorText}>{error}</Text>
+              </View>
+            ) : null}
+          </View>
 
           {mode === "choose" ? (
             <View style={s.buttons}>
@@ -455,7 +458,7 @@ const s = StyleSheet.create({
     height: 52,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: colors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
@@ -466,7 +469,7 @@ const s = StyleSheet.create({
     paddingRight: 52,
   },
   inputFocused: {
-    borderColor: "rgba(245,166,35,0.5)",
+    borderColor: colors.amber,
   },
   eyeButton: {
     position: "absolute",

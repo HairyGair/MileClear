@@ -43,3 +43,18 @@ export function useErrorState(): [string, (message: string) => void] {
   }, []);
   return [error, setError];
 }
+
+/**
+ * The text, one render late. A live Text that mounts together with its message
+ * is not reliably read by TalkBack (only changes to a live region already on
+ * screen are), so a screen that appears already showing an error shows an empty
+ * live Text first and gets the message in the next effect.
+ * Usage: const live = useDeferredText(error); <Text accessibilityLiveRegion="polite">{live}</Text>
+ */
+export function useDeferredText(text: string | null | undefined): string {
+  const [shown, setShown] = useState("");
+  useEffect(() => {
+    setShown(text ?? "");
+  }, [text]);
+  return shown;
+}

@@ -37,11 +37,6 @@ const FORMAT_ADVICE = "A National Insurance number is 2 letters, 6 numbers, then
 const WRONG_MESSAGE = `That doesn't look right. ${FORMAT_ADVICE}`;
 const EMPTY_MESSAGE = `Enter your National Insurance number. ${FORMAT_ADVICE}`;
 
-// Resting outline for the field. #708096 measures 5.0:1 on the field's own
-// background (#030712) and 4.7:1 on the card behind it (#0a1120), so the
-// boundary clears the 3:1 minimum for UI components (WCAG 1.4.11).
-const FIELD_OUTLINE = "#708096";
-
 // Spaces and hyphens are dropped, so a number pasted as "QQ-12-34-56-C" works.
 function normalise(raw: string): string {
   return raw.replace(/[\s-]+/g, "").toUpperCase();
@@ -142,11 +137,10 @@ export default function TaxMtdNinoScreen() {
             accessibilityLabel="National Insurance Number"
             accessibilityHint={errorText ?? "2 letters, 6 numbers, then A, B, C or D"}
           />
-          {errorText ? (
-            <Text style={styles.errorText} accessibilityLiveRegion="polite">
-              {errorText}
-            </Text>
-          ) : null}
+          {/* Always mounted: TalkBack only reads changes to a live region already on screen. */}
+          <Text style={errorText ? styles.errorText : undefined} accessibilityLiveRegion="polite">
+            {errorText ?? ""}
+          </Text>
           <Text style={styles.hint}>
             Find it on your payslip, P60, or in your HMRC personal tax account.
           </Text>
@@ -214,7 +208,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: FIELD_OUTLINE,
+    borderColor: colors.inputBorder,
     marginTop: 6,
   },
   inputValid: { borderColor: AMBER },

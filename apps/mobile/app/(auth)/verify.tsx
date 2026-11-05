@@ -117,15 +117,14 @@ export default function VerifyScreen() {
               : "Sending verification code..."}
           </Text>
 
-          {error ? (
-            <View
-              style={s.errorWrap}
-              accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
-            >
-              <Text style={s.errorText}>{error}</Text>
-            </View>
-          ) : null}
+          {/* Always mounted: TalkBack only reads changes to a live region that is already on screen. */}
+          <View accessibilityLiveRegion="polite">
+            {error ? (
+              <View style={s.errorWrap} accessibilityRole="alert">
+                <Text style={s.errorText}>{error}</Text>
+              </View>
+            ) : null}
+          </View>
 
           <Text style={s.label}>Verification code</Text>
           <TextInput
@@ -270,7 +269,7 @@ const s = StyleSheet.create({
   input: {
     backgroundColor: "rgba(255,255,255,0.03)",
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.inputBorder,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 14,

@@ -27,7 +27,7 @@ import {
   MISTAKE_LATER_TEXT,
   type HmrcEnv,
 } from "../lib/tax/mtdCopy";
-import { useAnnounceError } from "../lib/a11y/announce";
+import { useAnnounceError, useDeferredText } from "../lib/a11y/announce";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import {
   fetchHmrcStatus,
@@ -84,6 +84,7 @@ export default function TaxMtdPreviewScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useAnnounceError(error);
+  const liveError = useDeferredText(!loading && (error || !preview) ? (error ?? "Something went wrong.") : null);
   const [fetchedEnv, setFetchedEnv] = useState<HmrcEnv>(null);
   const fallbackEnv = useHmrcEnvironment();
   const env = fetchedEnv ?? fallbackEnv;
@@ -254,7 +255,7 @@ export default function TaxMtdPreviewScreen() {
         <Stack.Screen options={screenOptions} />
         <Ionicons name="alert-circle-outline" size={48} color={RED} />
         <Text accessibilityRole="header" style={[styles.title, { marginTop: 16 }]}>Couldn't work out your update</Text>
-        <Text style={styles.body} accessibilityLiveRegion="polite">{error ?? "Something went wrong."}</Text>
+        <Text style={styles.body} accessibilityLiveRegion="polite">{liveError}</Text>
       </View>
     );
   }

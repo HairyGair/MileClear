@@ -147,15 +147,14 @@ export default function RegisterScreen() {
         <View style={s.card}>
           <Text style={s.title} accessibilityRole="header">Get started</Text>
 
-          {error ? (
-            <View
-              style={s.errorWrap}
-              accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
-            >
-              <Text style={s.errorText}>{error}</Text>
-            </View>
-          ) : null}
+          {/* Always mounted: TalkBack only reads changes to a live region that is already on screen. */}
+          <View accessibilityLiveRegion="polite">
+            {error ? (
+              <View style={s.errorWrap} accessibilityRole="alert">
+                <Text style={s.errorText}>{error}</Text>
+              </View>
+            ) : null}
+          </View>
 
           {/* Social sign-in buttons */}
           {Platform.OS === "ios" && AppleAuthentication && (
@@ -395,7 +394,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
   },
   inputFocused: {
-    borderColor: "rgba(245, 166, 35, 0.35)",
+    borderColor: colors.amber,
   },
   button: {
     backgroundColor: AMBER,
