@@ -40,7 +40,7 @@ interface SheetProps {
 export function OverlapSheet({ visible, trip, yours, onSame, onOpen, onAddAnyway, onClose }: SheetProps) {
   const w = trip ? describeKnownTrip(trip) : null;
   return (
-    <AppModal visible={visible && !!w} onRequestClose={onClose}>
+    <AppModal scrollable visible={visible && !!w} onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
           <View style={styles.handle} />

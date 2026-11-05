@@ -246,6 +246,7 @@ export function DateTimePickerField({
         </TouchableOpacity>
 
         <AppModal
+          scrollable
           visible={showModal}
           animationType="slide"
           onRequestClose={() => setShowModal(false)}

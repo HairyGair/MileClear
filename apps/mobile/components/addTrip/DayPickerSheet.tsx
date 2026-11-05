@@ -100,7 +100,7 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
   const dayLine = pickedHere && (!unchecked || pickedHasTrips) ? calendarDayLine(picked!, trips!) : null;
 
   return (
-    <AppModal visible={visible} onRequestClose={onClose}>
+    <AppModal scrollable visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
           <View style={styles.handle} />

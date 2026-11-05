@@ -65,7 +65,7 @@ export function WhatsNewSheet() {
   }, [router]);
 
   return (
-    <AppModal visible={visible} onRequestClose={close}>
+    <AppModal scrollable visible={visible} onRequestClose={close}>
       <View style={s.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="Close" />
         <View style={s.sheet} accessibilityViewIsModal>

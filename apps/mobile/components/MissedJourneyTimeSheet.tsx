@@ -140,7 +140,7 @@ export function MissedJourneyTimeSheet({
   };
 
   return (
-    <AppModal visible={visible} onRequestClose={onCancel}>
+    <AppModal scrollable visible={visible} onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.handle} />

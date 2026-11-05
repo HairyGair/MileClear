@@ -23,7 +23,7 @@
 // content varies too widely (full-screen forms, bottom sheets, alerts,
 // scorecards). Callers build their own inner View / chrome.
 
-import { Modal, View } from "react-native";
+import { Modal, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ComponentProps, ReactNode } from "react";
 
@@ -40,6 +40,10 @@ interface AppModalProps {
    *  most MileClear modals render their own dark overlay. */
   transparent?: boolean;
   children: ReactNode;
+  /** Lets a sheet or card scroll when it is taller than the screen (a phone
+   *  held sideways is only ~375pt high). Fits-on-screen content looks and
+   *  behaves exactly as before. Don't use it for full-screen maps or lists. */
+  scrollable?: boolean;
   /** Escape hatch — pass any other props through to the underlying
    *  react-native Modal. Use sparingly; the whole point of this
    *  wrapper is to standardise behaviour. */
@@ -52,6 +56,7 @@ export function AppModal({
   animationType = "slide",
   transparent = true,
   children,
+  scrollable,
   rest,
 }: AppModalProps) {
   // Landscape: keep the sheet clear of the notch (insets are 0 in portrait).
@@ -67,7 +72,23 @@ export function AppModal({
       statusBarTranslucent
       {...rest}
     >
-      <View style={{ flex: 1, paddingLeft: insets.left, paddingRight: insets.right }}>{children}</View>
+      <View style={{ flex: 1, paddingLeft: insets.left, paddingRight: insets.right }}>
+        {scrollable ? (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1 }}
+            bounces={false}
+            alwaysBounceVertical={false}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentInsetAdjustmentBehavior="never"
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          children
+        )}
+      </View>
     </Modal>
   );
 }

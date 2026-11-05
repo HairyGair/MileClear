@@ -2156,7 +2156,7 @@ export default function TripsScreen() {
       )}
 
       {/* "+": a trip now, or one already driven */}
-      <AppModal visible={showAddSheet} animationType="fade" onRequestClose={() => setShowAddSheet(false)}>
+      <AppModal scrollable visible={showAddSheet} animationType="fade" onRequestClose={() => setShowAddSheet(false)}>
         <Pressable style={styles.mergeBackdrop} onPress={() => setShowAddSheet(false)} accessible={false}>
           <Pressable style={styles.mergeSheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
             <View style={styles.mergeHandle} />
@@ -2203,7 +2203,7 @@ export default function TripsScreen() {
       </AppModal>
 
       {/* Long-press menu */}
-      <AppModal visible={menuTrip != null} animationType="fade" onRequestClose={() => setMenuTrip(null)}>
+      <AppModal scrollable visible={menuTrip != null} animationType="fade" onRequestClose={() => setMenuTrip(null)}>
         <Pressable style={styles.mergeBackdrop} onPress={() => setMenuTrip(null)} accessible={false}>
           <Pressable style={styles.mergeSheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
             <View style={styles.mergeHandle} />
@@ -2234,7 +2234,7 @@ export default function TripsScreen() {
 
       {/* Join sheet */}
       {mergeModalVisible && (
-        <AppModal visible={true} animationType="slide" onRequestClose={() => setMergeModalVisible(false)}>
+        <AppModal scrollable visible={true} animationType="slide" onRequestClose={() => setMergeModalVisible(false)}>
           <Pressable
             style={styles.mergeBackdrop}
             onPress={() => setMergeModalVisible(false)}
@@ -2395,6 +2395,7 @@ export default function TripsScreen() {
       {/* Filters sheet - app + date range, folded behind the single Filters
           control in the header. */}
       <AppModal
+        scrollable
         visible={showFiltersSheet}
         animationType="slide"
         onRequestClose={() => setShowFiltersSheet(false)}
@@ -2574,6 +2575,7 @@ export default function TripsScreen() {
 
       {/* Custom date-range picker modal */}
       <AppModal
+        scrollable
         visible={showCustomPicker}
         animationType="slide"
         onRequestClose={() => setShowCustomPicker(false)}

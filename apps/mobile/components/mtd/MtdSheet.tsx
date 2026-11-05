@@ -13,7 +13,7 @@ interface Props {
 /** A small bottom sheet for the hub: Manage, and "Finishing the year isn't here yet". */
 export function MtdSheet({ visible, title, onClose, children }: Props) {
   return (
-    <AppModal visible={visible} onRequestClose={onClose}>
+    <AppModal scrollable visible={visible} onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" accessibilityRole="button" />
         <View style={styles.sheet}>

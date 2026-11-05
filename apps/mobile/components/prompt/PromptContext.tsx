@@ -121,6 +121,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
     <PromptContext.Provider value={{ prompt }}>
       {children}
       <AppModal
+        scrollable
         visible={visible}
         animationType="slide"
         onRequestClose={() => settle({ action: "cancel" })}

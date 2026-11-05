@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontSizes, numberSizes, shared, spacing } from "../../lib/theme";
 import type { HmrcEnv } from "../../lib/tax/mtdCopy";
@@ -34,6 +34,9 @@ export function TaxSoFarCard({
 }) {
   const result = useMtdTaxSoFar(userId, taxYear, enabled, refreshKey);
   const [open, setOpen] = useState(false);
+  // 460 on a tall phone; shorter when held sideways so the sheet still fits.
+  const { height: winH } = useWindowDimensions();
+  const explainMax = Math.min(460, Math.round(winH * 0.55));
   if (!result) return null;
   const view = taxSoFarView(result.summary, {
     env,
@@ -70,7 +73,7 @@ export function TaxSoFarCard({
       </View>
 
       <MtdSheet visible={open} title="How it's worked out" onClose={() => setOpen(false)}>
-        <ScrollView style={{ maxHeight: 460 }}>
+        <ScrollView style={{ maxHeight: explainMax }}>
           <EstimateExplained summary={result.summary} env={env} />
         </ScrollView>
       </MtdSheet>

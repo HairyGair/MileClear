@@ -72,6 +72,7 @@ export function ChallengeModal({ visible, onClose }: ChallengeModalProps) {
 
   return (
     <AppModal
+      scrollable
       visible={visible}
       animationType="fade"
     >

@@ -100,6 +100,7 @@ export function useDeleteAccount(): { start: () => void; deleting: boolean; elem
 
   const element = (
       <AppModal
+        scrollable
         visible={showDeleteModal}
         animationType="fade"
         onRequestClose={() => setShowDeleteModal(false)}

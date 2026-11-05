@@ -128,7 +128,7 @@ export function useNotificationAsk({ permission, enabled, onChanged }: Args): { 
 
   const copy = notifAskCopy(trips ?? 1);
   const sheet = (
-    <AppModal visible={visible} onRequestClose={notNow}>
+    <AppModal scrollable visible={visible} onRequestClose={notNow}>
       <View style={s.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={notNow} accessibilityRole="button" accessibilityLabel="Not now" />
         <View style={s.sheet} accessibilityViewIsModal>

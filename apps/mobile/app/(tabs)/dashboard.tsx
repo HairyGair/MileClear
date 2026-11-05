@@ -1841,6 +1841,7 @@ export default function DashboardScreen() {
   // ── Scorecard Modal ───────────────────────────────────────────
   const scorecardModal = (
     <AppModal
+      scrollable
       visible={showScorecard}
       animationType="slide"
       onRequestClose={() => setShowScorecard(false)}

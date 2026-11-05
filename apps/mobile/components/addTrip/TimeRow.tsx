@@ -146,7 +146,7 @@ export function TimeRow({ label, value, onChange, startAt, maximum, placeholder 
       </TouchableOpacity>
 
       {Platform.OS === "ios" && (
-        <AppModal visible={open} onRequestClose={() => setOpen(false)}>
+        <AppModal scrollable visible={open} onRequestClose={() => setOpen(false)}>
           <View style={styles.overlay}>
             <View style={styles.sheet} accessibilityViewIsModal>
               <View style={styles.handle} />
