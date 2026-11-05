@@ -273,7 +273,6 @@ function ChoiceSegment({
       <Ionicons name={iconName as keyof typeof Ionicons.glyphMap} size={18} color={fg} accessible={false} />
       <Text
         style={[styles.segmentText, { color: fg, fontFamily: selected ? fonts.bold : fonts.semibold }]}
-        numberOfLines={1}
         maxFontSizeMultiplier={fontScaleCap.display}
       >
         {label}
@@ -421,11 +420,11 @@ function Row({
     <>
       <Ionicons name={icon} size={20} color={colors.text2} accessible={false} />
       <View style={styles.rowText}>
-        <Text style={styles.rowLabel} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.body}>
+        <Text style={styles.rowLabel} maxFontSizeMultiplier={fontScaleCap.body}>
           {label}
         </Text>
         {sub ? (
-          <Text style={styles.rowSub} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.body}>
+          <Text style={styles.rowSub} maxFontSizeMultiplier={fontScaleCap.body}>
             {sub}
           </Text>
         ) : null}
@@ -433,7 +432,6 @@ function Row({
       {value ? (
         <Text
           style={[styles.rowValue, valueAccent && { color: colors.amber }]}
-          numberOfLines={1}
           maxFontSizeMultiplier={fontScaleCap.body}
         >
           {value}
@@ -441,7 +439,7 @@ function Row({
       ) : null}
       {chip ? (
         <View style={styles.proChip}>
-          <Text style={styles.proChipText} maxFontSizeMultiplier={fontScaleCap.none}>{chip}</Text>
+          <Text style={styles.proChipText} maxFontSizeMultiplier={fontScaleCap.body}>{chip}</Text>
         </View>
       ) : null}
       {busy ? <ActivityIndicator color={colors.text2} size="small" /> : null}
@@ -1106,7 +1104,7 @@ const styles = StyleSheet.create({
   },
   track: {
     flexDirection: "row",
-    height: 56,
+    minHeight: 56,
     padding: 4,
     gap: 4,
     borderRadius: 14,

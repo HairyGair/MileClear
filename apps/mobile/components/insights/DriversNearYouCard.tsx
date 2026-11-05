@@ -73,7 +73,7 @@ function Bar({ label, value, pct, color }: { label: string; value: string; pct: 
   return (
     <View style={styles.barBlock}>
       <View style={styles.barHead}>
-        <Text style={styles.barLabel} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.heading}>
+        <Text style={styles.barLabel} maxFontSizeMultiplier={fontScaleCap.heading}>
           {label}
         </Text>
         <Text style={styles.barValue} maxFontSizeMultiplier={fontScaleCap.display}>

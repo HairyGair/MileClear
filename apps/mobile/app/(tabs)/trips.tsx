@@ -1442,7 +1442,7 @@ export default function TripsScreen() {
 
             {/* Line 2: time, miles, app; the Business or Personal chip on the right */}
             <View style={styles.line2Row}>
-              <Text style={styles.line2} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text style={styles.line2} maxFontSizeMultiplier={fontScaleCap.body}>
                 {line2}
               </Text>
               {!isUnclassified && (
@@ -1474,7 +1474,6 @@ export default function TripsScreen() {
                 />
                 <Text
                   style={[styles.tagText, tag.kind === "upload_failed" && { color: RED }]}
-                  numberOfLines={1}
                   maxFontSizeMultiplier={fontScaleCap.body}
                 >
                   {tag.text}
@@ -1687,7 +1686,7 @@ export default function TripsScreen() {
               accessibilityRole="button"
               accessibilityLabel={dayLineA11y(odo)}
             >
-              <Text style={styles.odoLineText} maxFontSizeMultiplier={1.4}>{dayLineText(odo)}</Text>
+              <Text style={styles.odoLineText} maxFontSizeMultiplier={2}>{dayLineText(odo)}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -1758,7 +1757,7 @@ export default function TripsScreen() {
               <Text style={styles.routeTitle} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
                 {route}
               </Text>
-              <Text style={styles.line2} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text style={styles.line2} maxFontSizeMultiplier={fontScaleCap.body}>
                 {summaryLine}
               </Text>
             </View>
@@ -1909,14 +1908,13 @@ export default function TripsScreen() {
                   >
                     <Text
                       style={[styles.segmentText, selected && styles.segmentTextActive]}
-                      numberOfLines={1}
-                      maxFontSizeMultiplier={1.3}
+                      maxFontSizeMultiplier={2}
                     >
                       {f.label}
                     </Text>
                     {count > 0 && (
                       <View style={styles.segmentCount} accessible={false}>
-                        <Text style={styles.segmentCountText} maxFontSizeMultiplier={1.3}>
+                        <Text style={styles.segmentCountText} maxFontSizeMultiplier={2}>
                           {count > 99 ? "99+" : count}
                         </Text>
                       </View>
@@ -2125,7 +2123,7 @@ export default function TripsScreen() {
             color={swipeNotice.to === "business" ? AMBER : TEXT_1}
             accessible={false}
           />
-          <Text style={styles.swipeNoticeText} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+          <Text style={styles.swipeNoticeText} maxFontSizeMultiplier={fontScaleCap.body}>
             Marked {swipeNotice.to === "business" ? "Business" : "Personal"}
           </Text>
           <TouchableOpacity
@@ -2524,7 +2522,6 @@ export default function TripsScreen() {
                             styles.dateRangeChipText,
                             active && styles.dateRangeChipTextActive,
                           ]}
-                          numberOfLines={1}
                         >
                           {c.label}
                         </Text>

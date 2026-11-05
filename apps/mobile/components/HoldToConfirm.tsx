@@ -160,9 +160,6 @@ export function HoldToConfirm({
           they wrap and shrink identically. */}
       <Text
         style={[styles.label, { color: colour }]}
-        numberOfLines={2}
-        adjustsFontSizeToFit
-        minimumFontScale={0.8}
       >
         {text}
       </Text>

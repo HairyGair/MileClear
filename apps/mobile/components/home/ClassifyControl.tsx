@@ -100,7 +100,7 @@ export function ClassifyControl({
 const s = StyleSheet.create({
   track: {
     flexDirection: "row",
-    height: 40,
+    minHeight: 40,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,

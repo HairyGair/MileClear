@@ -86,7 +86,7 @@ export function ContextualHelp({
               <View style={styles.iconWrap}>
                 <Ionicons name="bulb-outline" size={20} color={colors.amber} />
               </View>
-              <Text style={styles.title} maxFontSizeMultiplier={1.4}>
+              <Text style={styles.title} maxFontSizeMultiplier={2}>
                 {topic.q}
               </Text>
               <TouchableOpacity
@@ -100,7 +100,7 @@ export function ContextualHelp({
             </View>
 
             <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-              <Text style={styles.bodyText} maxFontSizeMultiplier={1.5}>
+              <Text style={styles.bodyText} maxFontSizeMultiplier={2}>
                 {topic.a}
               </Text>
             </ScrollView>
@@ -114,7 +114,7 @@ export function ContextualHelp({
                   accessibilityLabel={`Open the related screen`}
                 >
                   <Ionicons name="arrow-forward" size={16} color={colors.bg} />
-                  <Text style={styles.primaryBtnText} maxFontSizeMultiplier={1.3}>
+                  <Text style={styles.primaryBtnText} maxFontSizeMultiplier={2}>
                     Open
                   </Text>
                 </TouchableOpacity>
@@ -125,7 +125,7 @@ export function ContextualHelp({
                 accessibilityRole="button"
                 accessibilityLabel="Close help"
               >
-                <Text style={styles.secondaryBtnText} maxFontSizeMultiplier={1.3}>
+                <Text style={styles.secondaryBtnText} maxFontSizeMultiplier={2}>
                   Got it
                 </Text>
               </TouchableOpacity>
@@ -140,7 +140,7 @@ export function ContextualHelp({
               accessibilityRole="button"
               accessibilityLabel="Open the full Help and Tutorials screen"
             >
-              <Text style={styles.fullHelpLinkText} maxFontSizeMultiplier={1.3}>
+              <Text style={styles.fullHelpLinkText} maxFontSizeMultiplier={2}>
                 See all help topics
               </Text>
               <Ionicons name="chevron-forward" size={14} color={colors.text2} />

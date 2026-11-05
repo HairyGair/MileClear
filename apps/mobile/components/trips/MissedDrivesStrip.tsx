@@ -30,7 +30,7 @@ export function MissedDrivesStrip({ count, onPress }: Props) {
     >
       <Ionicons name="git-compare-outline" size={18} color={colors.amber} accessible={false} />
       <View style={s.textWrap}>
-        <Text style={s.title} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.body}>
+        <Text style={s.title} maxFontSizeMultiplier={fontScaleCap.body}>
           {text}
         </Text>
       </View>

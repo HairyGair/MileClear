@@ -27,7 +27,7 @@ export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: 
       accessibilityHint="Opens the trip screen to record a drive now"
     >
       <Ionicons name="navigate" size={20} color={colors.bg} accessible={false} />
-      <Text style={s.tripText} maxFontSizeMultiplier={fontScaleCap.heading} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Start Trip</Text>
+      <Text style={s.tripText} maxFontSizeMultiplier={fontScaleCap.heading}>Start Trip</Text>
     </Pressable>
   );
 
@@ -48,7 +48,7 @@ export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: 
       ) : (
         <Ionicons name="play" size={18} color={colors.amber} accessible={false} />
       )}
-      <Text style={s.shiftText} maxFontSizeMultiplier={fontScaleCap.heading} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Start Shift</Text>
+      <Text style={s.shiftText} maxFontSizeMultiplier={fontScaleCap.heading}>Start Shift</Text>
     </Pressable>
   );
 

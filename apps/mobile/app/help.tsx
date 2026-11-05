@@ -82,10 +82,10 @@ export default function HelpScreen() {
       />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.tourCard}>
-          <Text style={styles.tourTitle} accessibilityRole="header" maxFontSizeMultiplier={1.4}>
+          <Text style={styles.tourTitle} accessibilityRole="header" maxFontSizeMultiplier={2}>
             Take the tour
           </Text>
-          <Text style={styles.tourBody} maxFontSizeMultiplier={1.5}>
+          <Text style={styles.tourBody} maxFontSizeMultiplier={2}>
             A minute on how MileClear records, sorts and adds up your drives, and a check of your phone's settings.
           </Text>
           <TouchableOpacity
@@ -95,7 +95,7 @@ export default function HelpScreen() {
             accessibilityRole="button"
             accessibilityLabel="Start the tour"
           >
-            <Text style={styles.tourBtnText} maxFontSizeMultiplier={1.3}>
+            <Text style={styles.tourBtnText} maxFontSizeMultiplier={2}>
               Start tour
             </Text>
           </TouchableOpacity>
@@ -113,7 +113,7 @@ export default function HelpScreen() {
             autoCorrect={false}
             clearButtonMode="while-editing"
             accessibilityLabel="Search help"
-            maxFontSizeMultiplier={1.4}
+            maxFontSizeMultiplier={2}
           />
         </View>
 
@@ -121,7 +121,7 @@ export default function HelpScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="sparkles-outline" size={18} color={colors.amber} accessible={false} />
-              <Text style={styles.sectionTitle} maxFontSizeMultiplier={1.4}>
+              <Text style={styles.sectionTitle} maxFontSizeMultiplier={2}>
                 New to MileClear?
               </Text>
             </View>
@@ -144,10 +144,10 @@ export default function HelpScreen() {
                   <Ionicons name="chatbubbles-outline" size={18} color={colors.amber} accessible={false} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.topicQ} maxFontSizeMultiplier={1.5}>
+                  <Text style={styles.topicQ} maxFontSizeMultiplier={2}>
                     Ask EmSee
                   </Text>
-                  <Text style={styles.askHint} maxFontSizeMultiplier={1.5}>
+                  <Text style={styles.askHint} maxFontSizeMultiplier={2}>
                     Questions about the app, any time
                   </Text>
                 </View>
@@ -158,7 +158,7 @@ export default function HelpScreen() {
         ) : null}
 
         {sections.length === 0 ? (
-          <Text style={styles.noResults} maxFontSizeMultiplier={1.5}>
+          <Text style={styles.noResults} maxFontSizeMultiplier={2}>
             Nothing found for that. Try other words, or ask us below.
           </Text>
         ) : null}
@@ -167,7 +167,7 @@ export default function HelpScreen() {
           <View key={section.title} style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name={section.icon} size={18} color={colors.amber} accessible={false} />
-              <Text style={styles.sectionTitle} maxFontSizeMultiplier={1.4}>
+              <Text style={styles.sectionTitle} maxFontSizeMultiplier={2}>
                 {section.title}
               </Text>
             </View>
@@ -182,7 +182,7 @@ export default function HelpScreen() {
         ))}
 
         <View style={styles.footerCard}>
-          <Text style={styles.footerLabel} maxFontSizeMultiplier={1.2}>
+          <Text style={styles.footerLabel} maxFontSizeMultiplier={2}>
             Still stuck?
           </Text>
           <TouchableOpacity
@@ -192,7 +192,7 @@ export default function HelpScreen() {
             accessibilityLabel="Tell us about a problem or idea"
           >
             <Ionicons name="chatbubble-outline" size={18} color={colors.amber} accessible={false} />
-            <Text style={styles.footerBtnText} maxFontSizeMultiplier={1.3}>
+            <Text style={styles.footerBtnText} maxFontSizeMultiplier={2}>
               Tell us about a problem or idea
             </Text>
           </TouchableOpacity>
@@ -203,7 +203,7 @@ export default function HelpScreen() {
             accessibilityLabel="Email MileClear support"
           >
             <Ionicons name="mail-outline" size={18} color={colors.amber} accessible={false} />
-            <Text style={styles.footerBtnText} maxFontSizeMultiplier={1.3}>
+            <Text style={styles.footerBtnText} maxFontSizeMultiplier={2}>
               Email support@mileclear.com
             </Text>
           </TouchableOpacity>
@@ -214,7 +214,7 @@ export default function HelpScreen() {
             accessibilityLabel="Open the full MileClear support site"
           >
             <Ionicons name="open-outline" size={18} color={colors.amber} accessible={false} />
-            <Text style={styles.footerBtnText} maxFontSizeMultiplier={1.3}>
+            <Text style={styles.footerBtnText} maxFontSizeMultiplier={2}>
               Open mileclear.com/support
             </Text>
           </TouchableOpacity>
@@ -248,7 +248,7 @@ function TopicList(props: {
               accessibilityState={{ expanded: isExpanded }}
               accessibilityHint="Shows the answer"
             >
-              <Text style={styles.topicQ} maxFontSizeMultiplier={1.5}>
+              <Text style={styles.topicQ} maxFontSizeMultiplier={2}>
                 {topic.q}
               </Text>
               <Ionicons
@@ -260,7 +260,7 @@ function TopicList(props: {
             </TouchableOpacity>
             {isExpanded ? (
               <View style={styles.topicAnswer}>
-                <Text style={styles.topicAnswerText} maxFontSizeMultiplier={1.5}>
+                <Text style={styles.topicAnswerText} maxFontSizeMultiplier={2}>
                   {topic.a}
                 </Text>
                 {topic.goTo || topic.externalUrl ? (
@@ -272,7 +272,7 @@ function TopicList(props: {
                     accessibilityLabel="Go there"
                     accessibilityHint={topic.externalUrl ? "Opens a web page" : "Opens the screen this answer is about"}
                   >
-                    <Text style={styles.goBtnText} maxFontSizeMultiplier={1.3}>
+                    <Text style={styles.goBtnText} maxFontSizeMultiplier={2}>
                       Go there
                     </Text>
                     <Ionicons name="arrow-forward" size={16} color={colors.amber} accessible={false} />

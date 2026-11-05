@@ -415,7 +415,7 @@ const s = StyleSheet.create({
     width: "100%",
   },
   outlineButton: {
-    height: 54,
+    minHeight: 54,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.16)",
@@ -456,7 +456,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.semibold,
   },
   input: {
-    height: 52,
+    minHeight: 52,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.inputBorder,
@@ -483,7 +483,7 @@ const s = StyleSheet.create({
   },
   primaryButton: {
     marginTop: 4,
-    height: 54,
+    minHeight: 54,
     borderRadius: 14,
     backgroundColor: colors.amber,
     alignItems: "center",

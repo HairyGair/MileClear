@@ -263,7 +263,7 @@ export function LastTripCard({ view, mode, state, onChanged, firstSortHint, firs
           {map}
           <View style={{ flex: 1 }}>
             {/* 3 lines: at the largest text sizes 2 cut the miles off ("12.…"). */}
-            <Text style={s.compactTitle} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={3}>
+            <Text style={s.compactTitle} maxFontSizeMultiplier={fontScaleCap.body}>
               {v.eyebrow}
             </Text>
           </View>
@@ -304,7 +304,7 @@ export function LastTripCard({ view, mode, state, onChanged, firstSortHint, firs
           {!mapAbove ? map : null}
           <View style={s.fullText}>
             <View style={s.eyebrowRow}>
-              <Text style={s.eyebrow} maxFontSizeMultiplier={fontScaleCap.display} numberOfLines={2}>
+              <Text style={s.eyebrow} maxFontSizeMultiplier={fontScaleCap.display}>
                 {v.eyebrow}
               </Text>
               {v.shiftChip ? (

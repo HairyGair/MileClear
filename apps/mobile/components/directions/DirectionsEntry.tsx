@@ -63,7 +63,7 @@ export function DirectionsHomeRows({ placement }: { placement: "resume" | "where
       <View style={s.resume}>
         <View style={s.resumeTop}>
           <DirectionsIcon size={22} color={colors.amber} />
-          <Text style={s.resumeText} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.heading}>
+          <Text style={s.resumeText} maxFontSizeMultiplier={fontScaleCap.heading}>
             Carry on to {name}?
           </Text>
         </View>

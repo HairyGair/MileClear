@@ -134,7 +134,7 @@ export function PlatformPnLCard({ days = 30 }: { days?: number }) {
         return (
           <View key={r.platform} style={styles.dataRow}>
             <View style={styles.platformCell}>
-              <Text style={styles.platformText} numberOfLines={1}>
+              <Text style={styles.platformText}>
                 {labelFor(r.platform)}
               </Text>
               <Text style={styles.subText}>

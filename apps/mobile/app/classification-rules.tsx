@@ -155,10 +155,10 @@ function RuleCard({
       </View>
 
       <View style={s.cardBody}>
-        <Text style={[s.cardName, !isEnabled && s.cardNameDisabled]} numberOfLines={1}>
+        <Text style={[s.cardName, !isEnabled && s.cardNameDisabled]}>
           {rule.name}
         </Text>
-        <Text style={s.cardDesc} numberOfLines={2}>
+        <Text style={s.cardDesc}>
           {description}
         </Text>
         {rule.platform_tag && (

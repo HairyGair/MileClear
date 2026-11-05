@@ -114,13 +114,11 @@ export default function AchievementsScreen() {
               </View>
               <Text
                 style={[s.badgeLabel, !isEarned && s.textLocked]}
-                numberOfLines={1}
               >
                 {meta.label}
               </Text>
               <Text
                 style={[s.badgeDesc, !isEarned && s.textLockedSoft]}
-                numberOfLines={2}
               >
                 {meta.description}
               </Text>

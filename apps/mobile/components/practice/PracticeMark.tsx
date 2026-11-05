@@ -36,7 +36,7 @@ export function PracticeMark({
     <View style={[s.tile, box]} accessible={false} importantForAccessibility="no-hide-descendants">
       <Text
         style={[s.initials, { fontSize: Math.round(size * (practice.initials.length > 2 ? 0.3 : 0.36)) }]}
-        maxFontSizeMultiplier={fontScaleCap.none}
+        maxFontSizeMultiplier={fontScaleCap.body}
       >
         {practice.initials}
       </Text>

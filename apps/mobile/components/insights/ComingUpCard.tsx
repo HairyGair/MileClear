@@ -230,7 +230,7 @@ function Road({
       {road.lastAchieved && (
         <View style={styles.achieved}>
           <Ionicons name="checkmark-circle" size={16} color={colors.green} />
-          <Text style={styles.achievedText} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={2}>
+          <Text style={styles.achievedText} maxFontSizeMultiplier={fontScaleCap.body}>
             {road.lastAchieved.label}: {road.lastAchieved.funFact}
           </Text>
         </View>

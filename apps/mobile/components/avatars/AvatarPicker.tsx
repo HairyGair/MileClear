@@ -75,7 +75,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
                 accessibilityState={{ selected: currentAvatarId === null }}
               >
                 <UserAvatar name="A" size={52} />
-                <Text style={styles.cellLabel} numberOfLines={1}>
+                <Text style={styles.cellLabel}>
                   Initials
                 </Text>
               </TouchableOpacity>
@@ -94,7 +94,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
                   accessibilityState={{ selected: currentAvatarId === avatar.id }}
                 >
                   <AvatarIcon avatarId={avatar.id} size={52} />
-                  <Text style={styles.cellLabel} numberOfLines={1}>
+                  <Text style={styles.cellLabel}>
                     {avatar.label}
                   </Text>
                 </TouchableOpacity>

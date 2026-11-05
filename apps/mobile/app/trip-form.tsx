@@ -4545,7 +4545,7 @@ export default function TripFormScreen() {
                 <>
                   <View style={styles.dashDivider} />
                   <View style={[styles.dashStat, { flex: 1.5 }]}>
-                    <Text style={[styles.dashStatValue, { fontSize: 14 }]} numberOfLines={1}>
+                    <Text style={[styles.dashStatValue, { fontSize: 14 }]}>
                       {currentArea}
                     </Text>
                     <Text style={styles.dashStatLabel}>AREA</Text>

@@ -287,7 +287,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
                   />
                   <StatusChip recorded={!odo.current.isEstimated} source={odo.current.basis.source} />
                 </View>
-                <Text style={styles.panelAsOf} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={2}>
+                <Text style={styles.panelAsOf} maxFontSizeMultiplier={fontScaleCap.body}>
                   {basisText(odo.current)}
                 </Text>
               </View>

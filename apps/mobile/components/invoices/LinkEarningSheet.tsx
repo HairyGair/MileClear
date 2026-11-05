@@ -250,7 +250,7 @@ export function LinkEarningSheet({
                         Logged {formatDate(match.periodStart)} · {daysCopy}
                       </Text>
                       {match.notes && (
-                        <Text style={styles.matchNotes} numberOfLines={2}>
+                        <Text style={styles.matchNotes}>
                           {match.notes}
                         </Text>
                       )}

@@ -53,8 +53,7 @@ export function PeriodSwitch({ period, onPeriodChange, offset, onOffsetChange, r
             >
               <Text
                 style={[styles.tabLabel, active && styles.tabLabelActive]}
-                numberOfLines={1}
-                maxFontSizeMultiplier={1.3}
+                maxFontSizeMultiplier={2}
               >
                 {o.label}
               </Text>
@@ -65,7 +64,7 @@ export function PeriodSwitch({ period, onPeriodChange, offset, onOffsetChange, r
 
       {isTaxYear ? (
         <View style={styles.stepper}>
-          <Text style={[styles.stepLabel, styles.stepLabelLeft]} maxFontSizeMultiplier={fontScaleCap.heading} numberOfLines={2}>
+          <Text style={[styles.stepLabel, styles.stepLabelLeft]} maxFontSizeMultiplier={fontScaleCap.heading}>
             {range.label}
           </Text>
           <View style={styles.chips}>
@@ -86,7 +85,7 @@ export function PeriodSwitch({ period, onPeriodChange, offset, onOffsetChange, r
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={`Tax year ${name}`}
                 >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]} maxFontSizeMultiplier={1.3}>
+                  <Text style={[styles.chipText, active && styles.chipTextActive]} maxFontSizeMultiplier={2}>
                     {name}
                   </Text>
                 </TouchableOpacity>
@@ -106,7 +105,6 @@ export function PeriodSwitch({ period, onPeriodChange, offset, onOffsetChange, r
           </TouchableOpacity>
           <Text
             style={styles.stepLabel}
-            numberOfLines={1}
             maxFontSizeMultiplier={fontScaleCap.heading}
             accessibilityRole="header"
           >
@@ -139,7 +137,7 @@ const styles = StyleSheet.create({
   },
   track: {
     flexDirection: "row",
-    height: 46,
+    minHeight: 46,
     backgroundColor: colors.surface,
     borderRadius: 999,
     padding: 3,

@@ -128,11 +128,11 @@ export function PromptProvider({ children }: { children: ReactNode }) {
         <View style={styles.overlay}>
           <View style={styles.sheet} accessibilityViewIsModal={true}>
             <View style={styles.handle} />
-            <Text style={styles.title} maxFontSizeMultiplier={1.4}>
+            <Text style={styles.title} maxFontSizeMultiplier={2}>
               {options?.title}
             </Text>
             {options?.message ? (
-              <Text style={styles.message} maxFontSizeMultiplier={1.6}>
+              <Text style={styles.message} maxFontSizeMultiplier={2}>
                 {options.message}
               </Text>
             ) : null}

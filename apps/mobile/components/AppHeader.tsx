@@ -65,7 +65,7 @@ export default function AppHeader({
       <View style={[styles.left, !title && styles.leftBrand]}>
         {showBack && <HeaderBackButton />}
         {title ? (
-          <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
+          <Text style={styles.title} accessibilityRole="header">
             {title}
           </Text>
         ) : (

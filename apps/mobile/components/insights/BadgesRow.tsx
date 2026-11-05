@@ -115,7 +115,7 @@ export function BadgesRow({ achievements, stats, mode, loading, skipNext = 0, on
             accessibilityLabel={`${a.label}, earned`}
           >
             <Medal type={a.type} state="earned" />
-            <Text style={styles.label} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.display}>{a.label}</Text>
+            <Text style={styles.label} maxFontSizeMultiplier={fontScaleCap.display}>{a.label}</Text>
           </TouchableOpacity>
         ))}
         {next.map((n) => {
@@ -129,10 +129,10 @@ export function BadgesRow({ achievements, stats, mode, loading, skipNext = 0, on
               accessibilityLabel={`${meta?.label ?? "Badge"}, not earned yet, ${n.progressText}`}
             >
               <Medal type={n.type} state="next" progress={n.progress} />
-              <Text style={[styles.label, { color: colors.text2 }]} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.display}>
+              <Text style={[styles.label, { color: colors.text2 }]} maxFontSizeMultiplier={fontScaleCap.display}>
                 {meta?.label ?? ""}
               </Text>
-              <Text style={styles.hint} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.display}>{n.progressText}</Text>
+              <Text style={styles.hint} maxFontSizeMultiplier={fontScaleCap.display}>{n.progressText}</Text>
             </TouchableOpacity>
           );
         })}

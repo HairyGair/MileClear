@@ -147,7 +147,7 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
                       </Text>
                     ) : null}
                     {linkedTo ? (
-                      <Text style={styles.rowLinked} numberOfLines={1}>
+                      <Text style={styles.rowLinked}>
                         Linked to {linkedTo}
                       </Text>
                     ) : null}

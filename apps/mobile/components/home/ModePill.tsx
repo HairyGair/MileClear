@@ -50,7 +50,6 @@ export function ModePill({ variant = "header", onChange }: Props) {
             <Text
               style={[s.label, active && s.labelActive]}
               maxFontSizeMultiplier={fontScaleCap.display}
-              numberOfLines={1}
             >
               {seg.label}
             </Text>
@@ -64,14 +63,14 @@ export function ModePill({ variant = "header", onChange }: Props) {
 const s = StyleSheet.create({
   track: {
     flexDirection: "row",
-    height: 30,
+    minHeight: 30,
     padding: 2,
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
   },
-  trackRow: { height: 36, alignSelf: "stretch" },
+  trackRow: { minHeight: 36, alignSelf: "stretch" },
   segment: {
     paddingHorizontal: 12,
     minWidth: 52,

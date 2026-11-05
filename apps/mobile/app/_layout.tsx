@@ -55,24 +55,24 @@ class ErrorBoundary extends React.Component<
             <View style={crashStyles.iconWrap}>
               <Ionicons name="warning-outline" size={36} color={colors.amber} />
             </View>
-            <Text style={crashStyles.title} maxFontSizeMultiplier={1.4}>
+            <Text style={crashStyles.title} maxFontSizeMultiplier={2}>
               Something went wrong
             </Text>
-            <Text style={crashStyles.subtitle} maxFontSizeMultiplier={1.6}>
+            <Text style={crashStyles.subtitle} maxFontSizeMultiplier={2}>
               MileClear ran into an unexpected error. Your trips are
               still saved — restart the app to continue.
             </Text>
             {this.state.error?.message ? (
               <View style={crashStyles.detailsCard}>
-                <Text style={crashStyles.detailsLabel} maxFontSizeMultiplier={1.2}>
+                <Text style={crashStyles.detailsLabel} maxFontSizeMultiplier={2}>
                   DIAGNOSTIC
                 </Text>
-                <Text style={crashStyles.detailsMessage} maxFontSizeMultiplier={1.4}>
+                <Text style={crashStyles.detailsMessage} maxFontSizeMultiplier={2}>
                   {this.state.error.message}
                 </Text>
               </View>
             ) : null}
-            <Text style={crashStyles.support} maxFontSizeMultiplier={1.4}>
+            <Text style={crashStyles.support} maxFontSizeMultiplier={2}>
               If this keeps happening, email support@mileclear.com.
             </Text>
           </ScrollView>

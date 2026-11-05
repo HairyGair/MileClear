@@ -155,7 +155,7 @@ export default function ProjectTotalsScreen() {
                 const body = (
                   <>
                     <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Text style={[styles.rowLabel, p.label === null && styles.rowLabelMuted]} numberOfLines={2}>
+                      <Text style={[styles.rowLabel, p.label === null && styles.rowLabelMuted]}>
                         {p.label ?? "No project"}
                       </Text>
                       <Text style={styles.rowSub}>{plural(p.trips, "trip")}</Text>

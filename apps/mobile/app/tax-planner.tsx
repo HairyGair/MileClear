@@ -204,7 +204,7 @@ export default function TaxPlannerScreen() {
                 <Text style={s.pillText}>{daysAwayLabel(next.daysAway)}</Text>
               </View>
               <Text style={s.heroLabel}>Next payment to HMRC</Text>
-              <Text style={s.heroValue} maxFontSizeMultiplier={1.3}>
+              <Text style={s.heroValue} maxFontSizeMultiplier={2}>
                 {formatPence(next.amountPence)}
               </Text>
               <Text style={s.heroSub}>Due by {longDate(next.dueDate)}</Text>
@@ -234,7 +234,7 @@ export default function TaxPlannerScreen() {
         {plan.weeklySetAsidePence != null && plan.weeklySetAsidePence > 0 && plan.coversTo && (
           <View style={s.setAside}>
             <Text style={s.setAsideLabel}>Put by each week</Text>
-            <Text style={s.setAsideValue} maxFontSizeMultiplier={1.3}>
+            <Text style={s.setAsideValue} maxFontSizeMultiplier={2}>
               {formatPence(plan.weeklySetAsidePence)}
             </Text>
             {(plan.accountantWeeklyFeePence ?? 0) > 0 && (
@@ -278,7 +278,7 @@ export default function TaxPlannerScreen() {
               </View>
               <Text
                 style={[s.paymentAmount, (p.amountPence == null || p.amountPence === 0) && s.paymentAmountDim]}
-                maxFontSizeMultiplier={1.3}
+                maxFontSizeMultiplier={2}
               >
                 {amountText(p)}
               </Text>

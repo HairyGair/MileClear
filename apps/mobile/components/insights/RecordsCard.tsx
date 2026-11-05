@@ -55,10 +55,10 @@ export function RecordsCard({ mode, records, loading, range }: RecordsCardProps)
           {cells.map((c) => (
             <View key={c.key} style={styles.cell} accessible accessibilityLabel={c.spoken}>
               <View style={styles.topRow}>
-                <Text style={styles.label} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.display}>{c.label}</Text>
+                <Text style={styles.label} maxFontSizeMultiplier={fontScaleCap.display}>{c.label}</Text>
                 {c.isNew ? (
                   <View style={styles.newPill}>
-                    <Text style={styles.newText} maxFontSizeMultiplier={1}>New</Text>
+                    <Text style={styles.newText} maxFontSizeMultiplier={2}>New</Text>
                   </View>
                 ) : (
                   <Ionicons name={ICONS[c.key]} size={16} color={colors.text3} />

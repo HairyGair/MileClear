@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   },
   btn: {
     marginTop: 32,
-    height: 50,
+    minHeight: 50,
     paddingHorizontal: 48,
     borderRadius: 12,
     backgroundColor: colors.amber,

@@ -65,7 +65,7 @@ export function MoreDetails(p: Props) {
       >
         <View style={{ flex: 1 }}>
           <Text style={styles.title} maxFontSizeMultiplier={fontScaleCap.body}>More details</Text>
-          <Text style={styles.summary} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>{summary}</Text>
+          <Text style={styles.summary} maxFontSizeMultiplier={fontScaleCap.body}>{summary}</Text>
         </View>
         <Ionicons name={p.open ? "chevron-up" : "chevron-forward"} size={20} color={colors.text3} accessible={false} />
       </TouchableOpacity>

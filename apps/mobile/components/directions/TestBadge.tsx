@@ -7,7 +7,7 @@ import { colors, fonts, fontScaleCap } from "../../lib/theme";
 export function TestBadge() {
   return (
     <View style={s.badge} accessibilityLabel="Test">
-      <Text style={s.text} maxFontSizeMultiplier={fontScaleCap.none}>
+      <Text style={s.text} maxFontSizeMultiplier={fontScaleCap.body}>
         Test
       </Text>
     </View>

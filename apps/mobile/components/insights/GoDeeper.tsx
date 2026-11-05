@@ -77,7 +77,7 @@ export default function GoDeeper({ period, offset, mode, isPro, refreshToken }: 
               Go deeper
             </Text>
             <View style={shared.proBadge}>
-              <Text style={shared.proBadgeText} maxFontSizeMultiplier={fontScaleCap.none}>
+              <Text style={shared.proBadgeText} maxFontSizeMultiplier={fontScaleCap.body}>
                 PRO
               </Text>
             </View>
@@ -196,7 +196,7 @@ function renderRows(rows: DeepRow[], open: RowKey | null, setOpen: (k: RowKey | 
           Go deeper
         </Text>
         <View style={shared.proBadge}>
-          <Text style={shared.proBadgeText} maxFontSizeMultiplier={fontScaleCap.none}>
+          <Text style={shared.proBadgeText} maxFontSizeMultiplier={fontScaleCap.body}>
             PRO
           </Text>
         </View>

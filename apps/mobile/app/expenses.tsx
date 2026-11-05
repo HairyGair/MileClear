@@ -87,7 +87,7 @@ function ExpenseCard({
 
       <View style={styles.cardBody}>
         <View style={styles.cardTopRow}>
-          <Text style={styles.cardCategory} numberOfLines={1}>
+          <Text style={styles.cardCategory}>
             {label}
           </Text>
           <Text style={styles.cardAmount}>{formatPence(item.amountPence)}</Text>

@@ -40,7 +40,7 @@ export function GoogleSignInButton({
 
 const s = StyleSheet.create({
   button: {
-    height: 54,
+    minHeight: 54,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.16)",

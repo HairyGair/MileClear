@@ -143,7 +143,7 @@ export function InsuranceMilesCard({ mode, state, refreshKey, tripKey, userId, s
         >
           <Ionicons name="shield-checkmark-outline" size={20} color={colors.text2} accessible={false} />
           <View style={s.body}>
-            <Text style={s.label} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+            <Text style={s.label} maxFontSizeMultiplier={fontScaleCap.body}>
               Insurance miles
             </Text>
             <Text style={s.figure} maxFontSizeMultiplier={fontScaleCap.heading}>
@@ -176,7 +176,7 @@ export function InsuranceMilesCard({ mode, state, refreshKey, tripKey, userId, s
       >
         <Ionicons name="shield-checkmark-outline" size={20} color={colors.text2} accessible={false} />
         <View style={s.body}>
-          <Text style={s.label} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+          <Text style={s.label} maxFontSizeMultiplier={fontScaleCap.body}>
             Insurance miles
           </Text>
           <Text style={s.figure} maxFontSizeMultiplier={fontScaleCap.heading}>

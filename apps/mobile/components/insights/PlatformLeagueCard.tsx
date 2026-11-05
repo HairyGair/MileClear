@@ -112,7 +112,7 @@ function LeagueRowView({ row, last, isPro }: { row: LeagueRow; last: boolean; is
         {row.rank}
       </Text>
       <View style={styles.mid}>
-        <Text style={styles.name} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.heading}>
+        <Text style={styles.name} maxFontSizeMultiplier={fontScaleCap.heading}>
           {row.label}
         </Text>
         {isPro && row.barFraction != null && (

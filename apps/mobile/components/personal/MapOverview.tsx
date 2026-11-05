@@ -285,7 +285,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
       {legendTrips.map((trip, i) => (
         <View key={trip.id} style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: tripColour(i) }]} />
-          <Text style={styles.legendText} numberOfLines={1} maxFontSizeMultiplier={1.4}>
+          <Text style={styles.legendText} maxFontSizeMultiplier={2}>
             {formatClock(trip.startedAt)} {"\u00B7"} {dist.fmt(trip.distanceMiles, { fixed: true })}
           </Text>
         </View>
@@ -293,7 +293,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
       {olderCount > 0 && (
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: mapOlder }]} />
-          <Text style={styles.legendText} numberOfLines={1} maxFontSizeMultiplier={1.4}>
+          <Text style={styles.legendText} maxFontSizeMultiplier={2}>
             +{olderCount} older
           </Text>
         </View>

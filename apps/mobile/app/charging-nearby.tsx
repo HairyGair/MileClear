@@ -114,7 +114,7 @@ export default function ChargingNearbyScreen() {
                   <View style={styles.cardHeader}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name} numberOfLines={1}>{c.name}</Text>
-                      <Text style={styles.meta} numberOfLines={1}>
+                      <Text style={styles.meta}>
                         {c.operator ? `${c.operator} · ` : ""}{c.distanceMiles} mi
                         {ACCESS_LABEL[c.access] ? ` · ${ACCESS_LABEL[c.access]}` : ""}
                       </Text>
@@ -139,7 +139,7 @@ export default function ChargingNearbyScreen() {
                   )}
 
                   <View style={styles.cardFooter}>
-                    {c.costNote ? <Text style={styles.costNote} numberOfLines={1}>{c.costNote}</Text> : <View style={{ flex: 1 }} />}
+                    {c.costNote ? <Text style={styles.costNote}>{c.costNote}</Text> : <View style={{ flex: 1 }} />}
                     <TouchableOpacity
                       style={styles.dirBtn}
                       onPress={() => openDirections(c.latitude, c.longitude, c.name)}

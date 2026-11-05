@@ -94,7 +94,7 @@ export function ReturnCard({
             {`YOUR ${ret.taxYear} RETURN`}
           </Text>
           <View style={[taxCard.pill, { backgroundColor: tone.bg }]}>
-            <Text style={[taxCard.pillText, { color: tone.fg }]} maxFontSizeMultiplier={fontScaleCap.none}>
+            <Text style={[taxCard.pillText, { color: tone.fg }]} maxFontSizeMultiplier={fontScaleCap.body}>
               {daysText(days)}
             </Text>
           </View>

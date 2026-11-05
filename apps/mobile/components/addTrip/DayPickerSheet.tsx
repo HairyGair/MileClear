@@ -137,7 +137,7 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
 
           <View style={styles.weekRow}>
             {WEEKDAYS.map((w) => (
-              <Text key={w} style={styles.weekday} maxFontSizeMultiplier={fontScaleCap.none}>
+              <Text key={w} style={styles.weekday} maxFontSizeMultiplier={fontScaleCap.body}>
                 {w}
               </Text>
             ))}
@@ -163,7 +163,7 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
                     <View style={[styles.dayCircle, isToday && styles.todayRing, isPicked && styles.pickedCircle]}>
                       <Text
                         style={[styles.dayText, future && styles.futureText, isPicked && styles.pickedText]}
-                        maxFontSizeMultiplier={fontScaleCap.none}
+                        maxFontSizeMultiplier={fontScaleCap.body}
                       >
                         {d.getDate()}
                       </Text>

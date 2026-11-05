@@ -15,7 +15,7 @@
 // Insights swap places with the work/personal mode in the same way.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Text, View } from "react-native";
+import { AppState, Text, View, useWindowDimensions } from "react-native";
 import { Tabs, useSegments } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -60,7 +60,12 @@ function TabLabel({ label, color }: { label: string; color: string }) {
         letterSpacing: 0.1,
       }}
       numberOfLines={1}
-      maxFontSizeMultiplier={1.2}
+      // Five tabs share the width, so at 200% text "Insights" would not fit
+      // on one line. Shrink to fit (never below 60%, so it is still larger
+      // than the default size) rather than truncate or break the word.
+      adjustsFontSizeToFit
+      minimumFontScale={0.6}
+      maxFontSizeMultiplier={2}
     >
       {label}
     </Text>
@@ -82,6 +87,12 @@ const tabLabel =
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  // Room for the icon, gap and a label scaled up to the 2.0 cap (line height
+  // about 1.3 x font size), plus padding. Never below the design height, so
+  // default text size is unchanged.
+  const labelLine = Math.ceil(tabBar.label * Math.min(Math.max(fontScale, 1), 2) * 1.3);
+  const tabContentHeight = Math.max(tabBar.contentHeight, 6 + tabBar.icon + 2 + labelLine + 6);
   const { isWork } = useMode();
   const { user } = useUser();
   const taxTab = showsTaxTab(isWork, isWorkDriver(user));
@@ -151,7 +162,7 @@ export default function TabLayout() {
           borderTopColor: colors.hairline,
           elevation: 0,
           shadowOpacity: 0,
-          height: tabBar.contentHeight + insets.bottom,
+          height: tabContentHeight + insets.bottom,
           paddingBottom: insets.bottom,
           paddingTop: 6,
         },

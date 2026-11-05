@@ -82,11 +82,11 @@ export function Banner(props: {
         <View style={s.tile}>{tile}</View>
         <View style={s.bannerText}>
           {distance ? (
-            <Text style={s.distance} maxFontSizeMultiplier={fontScaleCap.display} numberOfLines={1}>
+            <Text style={s.distance} maxFontSizeMultiplier={fontScaleCap.display}>
               {distance}
             </Text>
           ) : null}
-          <Text style={s.action} maxFontSizeMultiplier={fontScaleCap.display} numberOfLines={failed ? 2 : 1}>
+          <Text style={s.action} maxFontSizeMultiplier={fontScaleCap.display}>
             {action}
           </Text>
           {street ? (
@@ -157,7 +157,7 @@ export function SpeedSign({ mph }: { mph: number | null }) {
   if (mph == null) return <View style={s.speedPlaceholder} accessible={false} />;
   return (
     <View style={s.speed} accessibilityLabel={`Speed limit ${mph} miles per hour`}>
-      <Text style={s.speedText} maxFontSizeMultiplier={fontScaleCap.none}>
+      <Text style={s.speedText} maxFontSizeMultiplier={fontScaleCap.body}>
         {mph}
       </Text>
     </View>
@@ -266,7 +266,7 @@ const s = StyleSheet.create({
     marginLeft: 12,
     marginTop: 6,
     alignSelf: "flex-start",
-    height: 40,
+    minHeight: 40,
     borderRadius: 12,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
@@ -302,7 +302,7 @@ const s = StyleSheet.create({
   },
   goneEndText: { fontFamily: fonts.bold, fontSize: 16, color: colors.red },
   chip: {
-    height: 32,
+    minHeight: 32,
     borderRadius: 16,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,

@@ -599,7 +599,7 @@ function ConnectionLine({
     <View style={styles.connLine}>
       <View style={styles.headerLeft}>
         <View style={[styles.statusDot, { backgroundColor: dot }]} />
-        <Text style={styles.connText} numberOfLines={1} accessibilityRole="text">{label}</Text>
+        <Text style={styles.connText} accessibilityRole="text">{label}</Text>
       </View>
       <TouchableOpacity
         onPress={expired ? onConnect : onManage}

@@ -29,7 +29,7 @@ export function PracticeChip({
       ]}
     >
       {icon ? <Ionicons name={icon} size={12} color={color} accessible={false} /> : null}
-      <Text style={[s.text, { color }]} maxFontSizeMultiplier={fontScaleCap.none}>
+      <Text style={[s.text, { color }]} maxFontSizeMultiplier={fontScaleCap.body}>
         {label}
       </Text>
     </View>

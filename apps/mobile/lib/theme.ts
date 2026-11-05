@@ -147,13 +147,14 @@ export const fontSizes = {
 
 /**
  * Caps for the iOS Dynamic Type / Larger Text accessibility setting.
- * Pass on every `<Text>` so user-scaled text doesn't overflow fixed-
- * size containers (hero stat cards, badges, Live Activity views).
+ * Pass on every `<Text>`. Every cap is 2.0 (WCAG 1.4.4: text must resize to
+ * 200% without loss of content), so layouts must wrap rather than clip.
+ * The names stay so call sites say what kind of text they are.
  *
- *   display    1.3  — large numbers must not break their card
- *   heading    1.4  — section headers can grow but not double
- *   body       1.6  — readable copy scales most freely
- *   none       1.0  — never scale (badges, micro-icons text)
+ *   display    2.0  : large numbers
+ *   heading    2.0  : section headers
+ *   body       2.0  : readable copy
+ *   none       2.0  : kept for old call sites; no text is exempt now
  */
 // Directions (1.4.0, docs/navigation-1.4.0/DESIGN.md 6.1 and graphics/GRAPHICS.md 2).
 export const nav = {
@@ -173,10 +174,10 @@ export const nav = {
 } as const;
 
 export const fontScaleCap = {
-  display: 1.3,
-  heading: 1.4,
-  body: 1.6,
-  none: 1,
+  display: 2.0,
+  heading: 2.0,
+  body: 2.0,
+  none: 2.0,
 } as const;
 
 // ── Shared Styles ───────────────────────────────────────────────────

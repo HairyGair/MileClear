@@ -73,7 +73,7 @@ function CompareRow({ label, stat, format }: RowProps) {
       </Text>
       <View style={s.rowValues}>
         <View style={s.valueCol}>
-          <Text style={s.valueSmall} maxFontSizeMultiplier={fontScaleCap.none}>
+          <Text style={s.valueSmall} maxFontSizeMultiplier={fontScaleCap.body}>
             Typical
           </Text>
           <Text style={s.valueTypical} maxFontSizeMultiplier={fontScaleCap.display}>
@@ -81,7 +81,7 @@ function CompareRow({ label, stat, format }: RowProps) {
           </Text>
         </View>
         <View style={[s.valueCol, { alignItems: "flex-end" }]}>
-          <Text style={s.valueSmall} maxFontSizeMultiplier={fontScaleCap.none}>
+          <Text style={s.valueSmall} maxFontSizeMultiplier={fontScaleCap.body}>
             You
           </Text>
           <Text style={s.valueYou} maxFontSizeMultiplier={fontScaleCap.display}>
@@ -129,7 +129,7 @@ export function LocalBenchmarkCard({ mode }: { mode: LocalBenchmarkMode }) {
   const header = (
     <View style={s.headerRow}>
       <Ionicons name="people-outline" size={14} color={AMBER} accessible={false} />
-      <Text style={s.label} maxFontSizeMultiplier={fontScaleCap.none}>
+      <Text style={s.label} maxFontSizeMultiplier={fontScaleCap.body}>
         DRIVERS NEAR YOU
       </Text>
     </View>

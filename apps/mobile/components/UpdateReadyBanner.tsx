@@ -19,7 +19,7 @@ export function UpdateReadyBanner() {
       accessibilityLiveRegion="polite"
     >
       <Ionicons name="sparkles-outline" size={18} color={colors.amber} accessible={false} />
-      <Text style={styles.text} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={2}>
+      <Text style={styles.text} maxFontSizeMultiplier={fontScaleCap.body}>
         A new version of MileClear is ready
       </Text>
       <Pressable

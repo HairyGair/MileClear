@@ -153,7 +153,7 @@ function Row({ label, value, onPress }: { label: string; value: string; onPress:
       accessibilityLabel={`${label}: ${value}. Double tap to change`}
     >
       <Text style={styles.rowLabel} maxFontSizeMultiplier={fontScaleCap.body}>{label}</Text>
-      <Text style={styles.rowValue} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>{value}</Text>
+      <Text style={styles.rowValue} maxFontSizeMultiplier={fontScaleCap.body}>{value}</Text>
       <Ionicons name="chevron-forward" size={18} color={colors.text3} accessible={false} />
     </TouchableOpacity>
   );

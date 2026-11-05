@@ -41,8 +41,8 @@ export function EmptyState({ icon, title, description, action, iconColor = color
       <View style={[styles.iconWrap, card && styles.iconWrapCard, { borderColor: iconColor + "30" }]}>
         <Ionicons name={icon} size={card ? 24 : 36} color={iconColor} accessible={false} />
       </View>
-      <Text style={card ? styles.titleCard : styles.title} maxFontSizeMultiplier={1.4}>{title}</Text>
-      <Text style={styles.description} maxFontSizeMultiplier={1.6}>{description}</Text>
+      <Text style={card ? styles.titleCard : styles.title} maxFontSizeMultiplier={2}>{title}</Text>
+      <Text style={styles.description} maxFontSizeMultiplier={2}>{description}</Text>
       {action ? <View style={card ? styles.actionWrapCard : styles.actionWrap}>{action}</View> : null}
     </View>
   );

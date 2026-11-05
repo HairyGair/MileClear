@@ -529,7 +529,7 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
     >
-      <Text style={[s.pillText, active && s.pillTextActive]} numberOfLines={2}>{label}</Text>
+      <Text style={[s.pillText, active && s.pillTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
 }

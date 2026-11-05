@@ -10,7 +10,7 @@ import {
 import type { ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useReducedMotion } from "../lib/accessibility";
-import { colors, fonts } from "../lib/theme";
+import { colors, fonts, fontScaleCap } from "../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -272,7 +272,10 @@ export function Button({
               />
             )}
             <Text
+              maxFontSizeMultiplier={fontScaleCap.body}
               style={{
+                flexShrink: 1,
+                textAlign: "center",
                 fontSize: s.fs,
                 fontFamily: v.font,
                 color: textColor,
@@ -303,6 +306,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   content: {
+    flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

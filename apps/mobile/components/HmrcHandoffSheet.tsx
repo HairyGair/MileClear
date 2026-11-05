@@ -55,7 +55,7 @@ export function HmrcHandoffSheet({ visible, copy, onClose, onPrimary, onPrimaryT
                   color={colors.text2}
                   accessible={false}
                 />
-                <Text style={styles.pillText} maxFontSizeMultiplier={fontScaleCap.none}>{copy.pill}</Text>
+                <Text style={styles.pillText} maxFontSizeMultiplier={fontScaleCap.body}>{copy.pill}</Text>
               </View>
               <TouchableOpacity
                 onPress={onClose}
@@ -93,7 +93,7 @@ export function HmrcHandoffSheet({ visible, copy, onClose, onPrimary, onPrimaryT
                     accessibilityLabel={`Step ${i + 1}: ${s.title}${s.body ? `. ${s.body}` : ""}`}
                   >
                     <View style={styles.num}>
-                      <Text style={styles.numText} maxFontSizeMultiplier={fontScaleCap.none}>{i + 1}</Text>
+                      <Text style={styles.numText} maxFontSizeMultiplier={fontScaleCap.body}>{i + 1}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.stepTitle} maxFontSizeMultiplier={fontScaleCap.body}>{s.title}</Text>

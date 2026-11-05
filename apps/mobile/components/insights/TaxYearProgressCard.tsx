@@ -94,10 +94,10 @@ export default function TaxYearProgressCard({ period, offset, mode, refreshToken
               <View style={[styles.fill, { width: `${Math.max(2, Math.round(progress.fraction * 100))}%` }]} />
             </View>
             <View style={styles.scale}>
-              <Text style={styles.scaleText} maxFontSizeMultiplier={fontScaleCap.none}>
+              <Text style={styles.scaleText} maxFontSizeMultiplier={fontScaleCap.body}>
                 0
               </Text>
-              <Text style={styles.scaleText} maxFontSizeMultiplier={fontScaleCap.none}>
+              <Text style={styles.scaleText} maxFontSizeMultiplier={fontScaleCap.body}>
                 10,000
               </Text>
             </View>

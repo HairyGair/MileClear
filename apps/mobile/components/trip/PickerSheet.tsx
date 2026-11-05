@@ -83,7 +83,7 @@ export function PickerSheet({ visible, title, options, selectedKey, onPick, onCl
                         {o.label}
                       </Text>
                       {o.sub ? (
-                        <Text style={s.sub} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.body}>
+                        <Text style={s.sub} maxFontSizeMultiplier={fontScaleCap.body}>
                           {o.sub}
                         </Text>
                       ) : null}

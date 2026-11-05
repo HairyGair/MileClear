@@ -217,7 +217,7 @@ export default function MoreScreen() {
               {name}
             </Text>
             {plan ? (
-              <Text style={styles.plan} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text style={styles.plan} maxFontSizeMultiplier={fontScaleCap.body}>
                 {plan}
               </Text>
             ) : null}

@@ -341,7 +341,7 @@ export default function RoadAlertsScreen() {
       {lastHidden ? (
         // Floats over the bottom of the list so it is seen wherever the card was.
         <View style={[styles.undoBar, styles.undoFloat]} accessibilityLiveRegion="polite">
-          <Text style={styles.undoText} numberOfLines={2}>
+          <Text style={styles.undoText}>
             Hidden. We won&apos;t show or send this closure again.
           </Text>
           <TouchableOpacity onPress={undo} accessibilityRole="button" accessibilityLabel="Undo, show it again">

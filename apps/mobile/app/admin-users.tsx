@@ -270,7 +270,7 @@ const s = StyleSheet.create({
   searchIcon: { marginRight: 8 },
   searchInput: {
     flex: 1,
-    height: 44,
+    minHeight: 44,
     fontSize: 15,
     fontFamily: fonts.regular,
     color: TEXT_1,

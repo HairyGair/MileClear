@@ -61,7 +61,7 @@ export function OdometerCard({ rows, mode, state, onHide }: Props) {
             >
               <Ionicons name="speedometer-outline" size={20} color={colors.text2} accessible={false} />
               <View style={s.body}>
-                <Text style={s.label} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+                <Text style={s.label} maxFontSizeMultiplier={fontScaleCap.body}>
                   {row.name} odometer
                 </Text>
                 <View style={s.figureRow}>

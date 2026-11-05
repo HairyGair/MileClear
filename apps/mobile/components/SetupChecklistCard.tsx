@@ -93,7 +93,7 @@ export function SetupChecklistCard({ rows, done, total, onSnooze }: Props) {
                 accessible={false}
               />
               <View style={{ flex: 1 }}>
-                <Text style={[s.rowLabel, r.done && s.rowLabelDone]} numberOfLines={1}>
+                <Text style={[s.rowLabel, r.done && s.rowLabelDone]}>
                   {r.label}
                 </Text>
                 {!r.done ? <Text style={s.rowHint}>{r.hint}</Text> : null}

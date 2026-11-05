@@ -351,7 +351,7 @@ export function LocationPickerField({
                   accessibilityLabel={`Show all ${pickerPlaces.saved.length} saved places`}
                 >
                   <Ionicons name="chevron-down" size={15} color={AMBER} accessible={false} />
-                  <Text style={styles.showAllText} numberOfLines={1}>
+                  <Text style={styles.showAllText}>
                     Show all {pickerPlaces.saved.length} saved places
                   </Text>
                 </TouchableOpacity>
@@ -429,7 +429,7 @@ export function LocationPickerField({
               accessibilityLabel={`Search for ${searchText.trim()}`}
             >
               <Ionicons name="search-outline" size={15} color={AMBER} accessible={false} />
-              <Text style={styles.fallbackText} numberOfLines={1}>Search for &quot;{searchText.trim()}&quot;</Text>
+              <Text style={styles.fallbackText}>Search for &quot;{searchText.trim()}&quot;</Text>
             </TouchableOpacity>
           )}
 

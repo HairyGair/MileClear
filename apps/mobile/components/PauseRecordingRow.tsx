@@ -28,7 +28,7 @@ export function PauseRecordingRow({ pausedUntil, workHours = false, now, onPause
     return (
       <View style={s.pausedRow}>
         <Ionicons name="pause-circle" size={20} color={colors.amber} accessible={false} />
-        <Text style={s.pausedText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+        <Text style={s.pausedText}>
           {workHours ? workHoursRowText(pausedUntil, now) : pausedRowText(pausedUntil, now)}
         </Text>
         <TouchableOpacity

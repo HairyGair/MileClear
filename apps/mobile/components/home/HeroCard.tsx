@@ -172,7 +172,7 @@ export function HeroCard({ model, onPress, recentTrip }: Props) {
               {figure}
             </Text>
             {model.unit ? (
-              <Text style={s.unit} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={1}>
+              <Text style={s.unit} maxFontSizeMultiplier={fontScaleCap.body}>
                 {model.unit}
               </Text>
             ) : null}
@@ -180,7 +180,7 @@ export function HeroCard({ model, onPress, recentTrip }: Props) {
         )}
       </View>
       {model.line ? (
-        <Text style={s.line} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={3}>
+        <Text style={s.line} maxFontSizeMultiplier={fontScaleCap.body}>
           {model.line}
         </Text>
       ) : null}
