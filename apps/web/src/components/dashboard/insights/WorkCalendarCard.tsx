@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CalendarDay } from "@mileclear/shared";
 import { Button, Card, useData, useMe } from "../kit";
 import { getData } from "./data";
@@ -13,6 +13,16 @@ function WorkCalendarCardImpl(_props: { mode?: "work" | "personal" }): React.Rea
   const now = new Date();
   const [cursor, setCursor] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 });
   const on = mode === "work";
+  // Escape hides the day's miles pop-up without moving the pointer or focus;
+  // it comes back on the next day the pointer or focus reaches.
+  const [tipsOff, setTipsOff] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setTipsOff(true);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   const { data, error, loading, reload } = useData<CalendarDay[]>(on ? `calendar-${cursor.y}-${cursor.m}` : null, () =>
     getData(`/user/calendar?year=${cursor.y}&month=${cursor.m}`)
   );
@@ -41,7 +51,7 @@ function WorkCalendarCardImpl(_props: { mode?: "work" | "personal" }): React.Rea
         <span className={s.weekLabel}>{label}</span>
         <Button variant="ghost" size="sm" icon="chevron-forward" aria-label="Next month" onClick={() => move(1)} />
       </div>
-      <div className={s.cal} role="list" aria-label={`Miles driven each day in ${label}`}>
+      <div className={`${s.cal}${tipsOff ? ` ${s.calTipsOff}` : ""}`} role="list" aria-label={`Miles driven each day in ${label}`}>
         {DAYS_MON_FIRST.map((d) => (
           <span key={d} className={s.calHead} aria-hidden="true">
             {d.slice(0, 2)}
@@ -57,16 +67,19 @@ function WorkCalendarCardImpl(_props: { mode?: "work" | "personal" }): React.Rea
           const v = entry?.miles ?? 0;
           const spoken = new Date(cursor.y, cursor.m - 1, day).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
           const miles = v > 0 ? `${Math.round(v * 10) / 10} miles` : "no driving";
+          // Edge columns anchor the pop-up to their outer side so it is not cut off.
+          const col = (lead + i) % 7;
+          const edge = col <= 1 ? "start" : col >= 5 ? "end" : undefined;
           return (
             <span
               key={key}
               className={s.calDay}
               data-level={level(v)}
+              data-edge={edge}
               role="listitem"
               tabIndex={v > 0 ? 0 : undefined}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") (e.currentTarget as HTMLElement).blur();
-              }}
+              onMouseEnter={() => setTipsOff(false)}
+              onFocus={() => setTipsOff(false)}
             >
               <span aria-hidden="true">{day}</span>
               <span className="mc-sr-only">{`${spoken}: ${miles}`}</span>

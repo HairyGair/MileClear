@@ -59,9 +59,10 @@ export default function Screenshots() {
         </Reveal>
 
         <Reveal delay="reveal-d2">
-          <div className="screenshots__rail" role="list">
+          {/* A scrolling strip: reachable with Tab so keyboard users can scroll it with the arrow keys. */}
+          <div className="screenshots__rail" role="region" aria-label="App screens" tabIndex={0}>
             {shots.map((s) => (
-              <figure key={s.file} className="screenshots__card" role="listitem">
+              <figure key={s.file} className="screenshots__card">
                 <div className="screenshots__frame">
                   <Image
                     src={`/screenshot-source/iphone/${s.file}`}

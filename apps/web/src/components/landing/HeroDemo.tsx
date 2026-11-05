@@ -408,7 +408,7 @@ export default function HeroDemo() {
                 </span>
                 <span className="md__osm">
                   &copy;{" "}
-                  <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+                  <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" tabIndex={-1}>
                     OpenStreetMap
                   </a>
                 </span>

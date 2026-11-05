@@ -37,7 +37,7 @@ function Frame({ children }: { children: React.ReactNode }) {
       return (
         <div className="dash">
           <div className="sidebar" />
-          <main className="dash__main">
+          <main id="main-content" className="dash__main" tabIndex={-1}>
             <DashboardSkeleton />
           </main>
         </div>
@@ -45,7 +45,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     }
     return (
       <div className="dash dash--admin">
-        <main className="dash__main">{children}</main>
+        <main id="main-content" className="dash__main" tabIndex={-1}>{children}</main>
       </div>
     );
   }

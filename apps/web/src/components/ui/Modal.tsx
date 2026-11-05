@@ -32,6 +32,9 @@ export function Modal({ open, onClose, title, children, footer, large }: ModalPr
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // Leave Escape alone while typing in another language's input method,
+        // or when a control inside the dialog has already used it.
+        if (e.isComposing || e.defaultPrevented) return;
         onCloseRef.current();
         return;
       }

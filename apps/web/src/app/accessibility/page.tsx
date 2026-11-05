@@ -79,7 +79,7 @@ export default function AccessibilityStatement() {
                 We have not had a formal third-party accessibility audit. What we have done is described below, so you can judge how far to rely on it.
               </p>
               <p className="legal__text">
-                How we checked: automated checks with the axe testing tool on the public website pages and on the web dashboard pages, keyboard-only testing of the website and dashboard, a review of the phone app code for screen reader names, roles and headings, and testing of the iPhone app in the iOS simulator. We have not tested every screen with every screen reader.
+                How we checked: automated checks with the axe testing tool on the public website pages and on the web dashboard pages, keyboard checks of the main website and dashboard pages, a review of the phone app code for screen reader names, roles and headings, and testing of the iPhone app in the iOS simulator. We have not tested every screen with every screen reader.
               </p>
             </section>
 
@@ -89,7 +89,7 @@ export default function AccessibilityStatement() {
                 This covers the public website and the web dashboard at mileclear.com/dashboard. What we do:
               </p>
               <ul className="legal__list">
-                <li className="legal__list-item"><strong>Keyboard:</strong> pages can be used with the keyboard alone, and a "Skip to content" link is the first thing you reach on each page.</li>
+                <li className="legal__list-item"><strong>Keyboard:</strong> pages can be used with the keyboard alone, and a "Skip to content" link is the first thing you reach on the public pages, the sign-in pages, the dashboard and the admin area.</li>
                 <li className="legal__list-item"><strong>Focus outline:</strong> buttons, links and fields show a visible outline when you reach them with the keyboard. The release banner at the top of the site has its own outline too.</li>
                 <li className="legal__list-item"><strong>Form fields:</strong> the fields on the sign-in, create account and support pages and in the dashboard have a label tied to the field. The edges of text fields, switches and filter buttons are at least 3:1 against what is behind them (the dashboard field edge measures 3.7:1 on the page background). Sign-in, create account, reset password and verify pages each have their own page title.</li>
                 <li className="legal__list-item"><strong>Links in text:</strong> links inside sentences are underlined, so they do not rely on colour alone.</li>
@@ -112,10 +112,9 @@ export default function AccessibilityStatement() {
               <ul className="legal__list">
                 <li className="legal__list-item"><strong>Screen readers:</strong> buttons, tabs, switches, text fields and chosen options have a spoken name and say what they are. We aim for every control to have one and fixed the gaps a code review found, but we have not heard every screen read aloud.</li>
                 <li className="legal__list-item"><strong>Headings:</strong> screen titles and the section titles on the tax screens are marked as headings, so screen reader users can jump between them.</li>
-                <li className="legal__list-item"><strong>Error messages:</strong> on sign-in, create account, verify, reset password and the National Insurance number screen, a mistake is explained in words under the field (not only by a colour), and it is read out when it appears.</li>
-                <li className="legal__list-item"><strong>Trips list:</strong> each trip offers screen reader actions: mark as Business or Personal, put back in To sort, add or edit a note, join trips and delete. Delete still asks first.</li>
-                <li className="legal__list-item"><strong>Text size:</strong> text follows your phone's text size up to 200%. Labels wrap instead of being cut off. Two exceptions: the labels on the bottom tab bar shrink to fit rather than growing past a point, and the MileClear logo does not scale.</li>
-                <li className="legal__list-item"><strong>Portrait and landscape:</strong> the app turns to landscape, and screens and pop-up sheets scroll or rearrange to fit.</li>
+                <li className="legal__list-item"><strong>Error messages:</strong> on sign-in, create account, verify, reset password and the National Insurance number screen, a mistake is explained in words (not only by a colour), and it is read out when it appears.</li>
+                <li className="legal__list-item"><strong>Trips list:</strong> each trip offers the same choices as its swipe and long-press menu as screen reader actions: mark as Business or Personal, put back in To sort, add or edit a note, join trips and delete. Delete still asks first.</li>
+                <li className="legal__list-item"><strong>Text size:</strong> text follows your phone's text size up to 200%. At the larger sizes labels wrap instead of being cut off. Two exceptions: the labels on the bottom tab bar shrink to fit rather than growing past a point, and the MileClear logo does not scale.</li>
                 <li className="legal__list-item"><strong>Reduce Motion:</strong> the pulsing recording dot and other decorative animations stay still when Reduce Motion is on.</li>
                 <li className="legal__list-item"><strong>Field outlines:</strong> text fields have an outline that is at least 3:1 against the screen, and a solid amber outline while you type in them.</li>
                 <li className="legal__list-item"><strong>Autofill:</strong> sign-up, sign-in, reset password and profile fields tell the phone what they are for (email, name, password, one-time code), so password managers and autofill work.</li>
@@ -138,6 +137,7 @@ export default function AccessibilityStatement() {
                 <li className="legal__list-item">We have not had a formal third-party accessibility audit. Our checks are the ones listed in section 2, and they do not cover every screen reader or every page.</li>
                 <li className="legal__list-item">The phone app does not specifically respond to the Increase Contrast or Bold Text settings. Its colours are fixed, and most text and field outlines meet the contrast levels above, but the app does not get stronger when you switch these on.</li>
                 <li className="legal__list-item">The Android app has not yet been tested end to end with TalkBack.</li>
+                <li className="legal__list-item">The app versions on the App Store and Google Play today work in portrait only. Landscape is built and arrives with the next app version.</li>
                 <li className="legal__list-item">The labels on the phone app's bottom tab bar shrink to fit at the largest text sizes instead of growing to 200%, and the MileClear logo does not change size.</li>
                 <li className="legal__list-item">The Android app does not tell TalkBack that its language is English separately. TalkBack uses your phone's language, so a phone set to another language may read the app's English text in the wrong voice.</li>
                 <li className="legal__list-item">The website and dashboard have been checked with automated tools and by keyboard, not with every screen reader. We have not checked every page at 200% browser zoom, and forced colours support covers the dashboard only.</li>

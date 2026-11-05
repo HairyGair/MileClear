@@ -51,7 +51,7 @@ export default function ReferralLandingPage({
   };
 
   return (
-    <div className="auth-layout">
+    <main className="auth-layout">
       <div className="auth-card">
         <Link href="/" className="auth-card__logo">
           <img src="/branding/logo-120x120.png" alt="" className="auth-card__logo-icon" />
@@ -107,6 +107,6 @@ export default function ReferralLandingPage({
           Already have an account? <Link href="/login">Sign in</Link>
         </p>
       </div>
-    </div>
+    </main>
   );
 }
