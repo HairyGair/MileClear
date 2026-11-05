@@ -36,7 +36,7 @@ export function TaxSoFarCard({
   const [open, setOpen] = useState(false);
   // 460 on a tall phone; shorter when held sideways so the sheet still fits.
   const { height: winH } = useWindowDimensions();
-  const explainMax = Math.min(460, Math.round(winH * 0.55));
+  const explainMax = Math.min(460, Math.round(winH * 0.7));
   if (!result) return null;
   const view = taxSoFarView(result.summary, {
     env,
