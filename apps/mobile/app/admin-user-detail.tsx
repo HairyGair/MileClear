@@ -616,7 +616,7 @@ const s = StyleSheet.create({
     backgroundColor: BG,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: colors.inputBorder,
     padding: 10,
     minHeight: 90,
     fontSize: 13,

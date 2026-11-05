@@ -26,7 +26,6 @@ const CARD_BG = colors.surface;
 const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
-const CARD_BORDER = "rgba(255,255,255,0.08)";
 
 const DUMP_WAIT_MS = 8000;
 
@@ -159,7 +158,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: colors.inputBorder,
   },
   hint: { fontSize: 11, fontFamily: fonts.regular, color: TEXT_3, marginTop: 6 },
   attachNote: { flexDirection: "row", gap: 8, alignItems: "flex-start", marginTop: 20, marginBottom: 16 },

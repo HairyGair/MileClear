@@ -265,7 +265,7 @@ const s = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: colors.inputBorder,
   },
   searchIcon: { marginRight: 8 },
   searchInput: {

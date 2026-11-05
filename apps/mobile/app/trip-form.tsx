@@ -116,6 +116,7 @@ import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, mark
 import { getLiveActivityContext } from "../lib/liveActivity/context";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import { colors, fonts, fontScaleCap } from "../lib/theme";
+import { useReducedMotion } from "../lib/accessibility";
 import { haptic } from "../lib/haptics";
 import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
 import { needsTimeConfirm, clockTime } from "../lib/trips/manualTimeRule";
@@ -2267,8 +2268,14 @@ export default function TripFormScreen() {
   }, [mode, startedAt, letGoIfFinishedElsewhere]);
 
   // Pulsing live dot
+  // Held still when the phone's Reduce Motion setting is on.
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
     if (mode !== "driving") return;
+    if (reduceMotion) {
+      pulseAnim.setValue(1);
+      return;
+    }
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.6, duration: 1000, useNativeDriver: true }),
@@ -2277,7 +2284,7 @@ export default function TripFormScreen() {
     );
     pulse.start();
     return () => pulse.stop();
-  }, [mode, pulseAnim]);
+  }, [mode, pulseAnim, reduceMotion]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -4271,7 +4278,7 @@ export default function TripFormScreen() {
               }}
               keyboardType="decimal-pad"
               placeholder="0.0"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.text3}
               accessibilityLabel={`Enter the trip distance in ${dist.label("spoken")}`}
             />
             <Text style={styles.manualDistanceUnit}>{dist.label("word")}</Text>
@@ -4324,17 +4331,17 @@ export default function TripFormScreen() {
                 value={odometerStart}
                 onChangeText={(t) => setOdometerStart(t.replace(/[^0-9.]/g, ""))}
                 placeholder="Start"
-                placeholderTextColor="#64748b"
+                placeholderTextColor={colors.text3}
                 keyboardType="decimal-pad"
                 accessibilityLabel="Odometer reading at the start"
               />
-              <Ionicons name="arrow-forward" size={16} color="#64748b" />
+              <Ionicons name="arrow-forward" size={16} color={colors.text3} />
               <TextInput
                 style={[styles.input, styles.odometerInput]}
                 value={odometerEnd}
                 onChangeText={(t) => setOdometerEnd(t.replace(/[^0-9.]/g, ""))}
                 placeholder="End"
-                placeholderTextColor="#64748b"
+                placeholderTextColor={colors.text3}
                 keyboardType="decimal-pad"
                 accessibilityLabel="Odometer reading at the end"
               />
@@ -6267,7 +6274,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.inputBorder,
   },
   notesInput: {
     minHeight: 80,
@@ -6277,7 +6284,7 @@ const styles = StyleSheet.create({
   },
   journalInput: {
     minHeight: 60,
-    borderColor: "rgba(245, 166, 35, 0.12)",
+    borderColor: colors.inputBorder,
   },
   distanceCard: {
     backgroundColor: CARD_BG,
@@ -6324,7 +6331,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
-    borderColor: "rgba(245,166,35,0.4)",
+    borderColor: colors.inputBorder,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,

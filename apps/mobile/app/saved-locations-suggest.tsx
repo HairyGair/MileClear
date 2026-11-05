@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: colors.inputBorder,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,

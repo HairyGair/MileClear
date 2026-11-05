@@ -928,7 +928,7 @@ const s = StyleSheet.create({
   legalSmall: {
     fontSize: 11,
     fontFamily: fonts.regular,
-    color: "rgba(100,116,139,0.6)",
+    color: "#94a3b8",
     textAlign: "center",
     lineHeight: 16,
     paddingHorizontal: 8,

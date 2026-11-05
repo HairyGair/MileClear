@@ -150,7 +150,7 @@ export default function YourAccountantScreen() {
           <Text style={s.flashText} maxFontSizeMultiplier={fontScaleCap.body}>
             {flash}
           </Text>
-          <Pressable onPress={() => setFlash(null)} hitSlop={10} accessibilityLabel="Dismiss">
+          <Pressable accessibilityRole="button" onPress={() => setFlash(null)} hitSlop={10} accessibilityLabel="Dismiss">
             <Ionicons name="close" size={18} color={colors.text3} />
           </Pressable>
         </View>
@@ -748,6 +748,7 @@ function FeeSection({
             <TextInput
               style={s.fieldInput}
               value={name}
+              accessibilityLabel="Accountant name"
               onChangeText={setName}
               placeholder="For example, Jane at Smith & Co"
               placeholderTextColor={colors.text3}
@@ -764,6 +765,7 @@ function FeeSection({
             <TextInput
               style={s.fieldInput}
               value={contact}
+              accessibilityLabel="Accountant contact, email or phone, optional"
               onChangeText={setContact}
               placeholder="Email or phone (optional)"
               placeholderTextColor={colors.text3}
@@ -778,6 +780,7 @@ function FeeSection({
           <TextInput
             style={s.fieldInput}
             value={feePounds}
+            accessibilityLabel="Annual fee in pounds"
             onChangeText={setFeePounds}
             placeholder="For example, 240.00"
             placeholderTextColor={colors.text3}
@@ -840,7 +843,7 @@ const s = StyleSheet.create({
     minHeight: 48,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.inputBorder,
     backgroundColor: colors.bg,
     paddingHorizontal: 14,
     color: colors.text1,
@@ -881,7 +884,16 @@ const s = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.05)",
   },
   fieldLabel: { fontSize: 12, fontFamily: fonts.semibold, color: colors.text2, marginBottom: 6 },
-  fieldInput: { fontSize: 15, fontFamily: fonts.regular, color: colors.text1, paddingVertical: 8 },
+  fieldInput: {
+    fontSize: 15,
+    fontFamily: fonts.regular,
+    color: colors.text1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    borderRadius: 8,
+  },
   readOnly: { fontSize: 15, fontFamily: fonts.regular, color: colors.text2, paddingVertical: 8 },
   hint: { fontSize: 12, fontFamily: fonts.regular, color: colors.amber, marginTop: 6 },
 });

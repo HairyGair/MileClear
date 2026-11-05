@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.inputBorder,
     paddingHorizontal: 14,
     paddingTop: 10,
     paddingBottom: 10,

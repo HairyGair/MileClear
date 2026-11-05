@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.inputBorder,
     paddingHorizontal: 10,
     paddingVertical: 6,
     textAlign: "right",

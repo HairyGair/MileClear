@@ -8,6 +8,10 @@ export const colors = {
   surface: "#0a1120",
   surfaceElevated: "#0a1120",
   surfaceBorder: "rgba(255,255,255,0.06)",
+  // The outline of a text field. A control's boundary needs 3:1 against what
+  // it sits on (WCAG 1.4.11): #708096 is 5.0:1 on bg, 4.7:1 on surface and
+  // 3.9:1 on the practice mark tile. Focus is solid amber (8.9:1 on surface).
+  inputBorder: "#708096",
 
   // Brand
   amber: "#f5a623",

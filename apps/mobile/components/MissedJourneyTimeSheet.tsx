@@ -168,11 +168,11 @@ export function MissedJourneyTimeSheet({
             </TouchableOpacity>
           ) : (
             <View style={styles.stepRow}>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => step(-1)} accessibilityLabel="15 minutes earlier">
+              <TouchableOpacity accessibilityRole="button" style={styles.stepBtn} onPress={() => step(-1)} accessibilityLabel="15 minutes earlier">
                 <Text style={styles.stepText}>- 15 min</Text>
               </TouchableOpacity>
               <Text style={[styles.fieldText, styles.stepValue]}>{chosen ? whenLabel(chosen) : "Choose a time"}</Text>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => step(1)} accessibilityLabel="15 minutes later">
+              <TouchableOpacity accessibilityRole="button" style={styles.stepBtn} onPress={() => step(1)} accessibilityLabel="15 minutes later">
                 <Text style={styles.stepText}>+ 15 min</Text>
               </TouchableOpacity>
             </View>

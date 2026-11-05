@@ -83,7 +83,7 @@ function TransactionCard({
   const confLabel = confidenceLabel(item.suggestedConfidence);
 
   return (
-    <TouchableOpacity
+    <TouchableOpacity accessibilityRole="button"
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.7}
@@ -142,7 +142,7 @@ function CategoryPicker({
 }: CategoryPickerProps) {
   return (
     <AppModal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity
+      <TouchableOpacity accessible={false}
         style={styles.modalBackdrop}
         activeOpacity={1}
         onPress={onClose}
@@ -152,7 +152,7 @@ function CategoryPicker({
           <Text style={styles.modalTitle}>{title}</Text>
           <ScrollView style={styles.modalList}>
             {options.map((opt) => (
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: selected === opt.value }}
                 key={opt.value}
                 style={[
                   styles.modalItem,
@@ -409,7 +409,7 @@ export default function InboxScreen() {
         animationType="slide"
         onRequestClose={() => setActive(null)}
       >
-        <TouchableOpacity
+        <TouchableOpacity accessible={false}
           style={styles.modalBackdrop}
           activeOpacity={1}
           onPress={() => !busy && setActive(null)}
@@ -438,7 +438,7 @@ export default function InboxScreen() {
                 </TouchableOpacity>
               ) : null}
 
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={styles.actionPrimary}
                 onPress={() => setPickerOpen(true)}
                 disabled={busy}
@@ -454,7 +454,7 @@ export default function InboxScreen() {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={styles.actionSecondary}
                 onPress={handleIgnore}
                 disabled={busy}

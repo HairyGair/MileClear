@@ -236,7 +236,7 @@ export default function MileageReliefScreen() {
     return (
       <View style={s.center}>
         <Text style={s.body}>{error ?? "Could not load your miles."}</Text>
-        <TouchableOpacity style={s.secondaryBtn} onPress={() => { setLoading(true); load().finally(() => setLoading(false)); }}>
+        <TouchableOpacity accessibilityRole="button" style={s.secondaryBtn} onPress={() => { setLoading(true); load().finally(() => setLoading(false)); }}>
           <Text style={s.secondaryBtnText}>Try again</Text>
         </TouchableOpacity>
       </View>
@@ -270,7 +270,7 @@ export default function MileageReliefScreen() {
             claimed on your Self Assessment instead. If you are also employed, set your work type
             to Employee or Both in your tax details.
           </Text>
-          <TouchableOpacity style={s.secondaryBtn} onPress={() => router.push("/settings/work-tax")}>
+          <TouchableOpacity accessibilityRole="button" style={s.secondaryBtn} onPress={() => router.push("/settings/work-tax")}>
             <Text style={s.secondaryBtnText}>Open your tax details</Text>
           </TouchableOpacity>
         </View>
@@ -287,7 +287,7 @@ export default function MileageReliefScreen() {
             : "Not set. The figures below assume your employer paid you nothing for mileage, which is only right if that is true."}
           {" "}If it was different in a year, change it on that year below.
         </Text>
-        <TouchableOpacity style={s.linkRow} onPress={() => router.push("/settings/work-tax")}>
+        <TouchableOpacity accessibilityRole="button" style={s.linkRow} onPress={() => router.push("/settings/work-tax")}>
           <Text style={s.link}>{rateSet ? "Change your usual rate" : "Set your employer rate"}</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.amber} />
         </TouchableOpacity>
@@ -347,11 +347,11 @@ export default function MileageReliefScreen() {
         <Step n={2} text="Keep a mileage log. HMRC asks for the reason for every journey and the postcode where each one started and ended, with a separate log for each employer. Your trips in MileClear show where each one started and ended." />
         <Step n={3} text={`If your job expenses for a year come to ${formatPence(P87_MAX_CLAIM_PENCE)} or less and you do not fill in Self Assessment, claim online or by post on form P87. Over ${formatPence(P87_MAX_CLAIM_PENCE)}, or if you already fill in Self Assessment, claim on your tax return. The ${formatPence(P87_MAX_CLAIM_PENCE)} counts all your job expenses for the year together, not only mileage.`} />
         <Step n={4} text="For this tax year HMRC usually changes your tax code. For earlier years they change your tax code or send a refund." />
-        <TouchableOpacity style={s.primaryBtn} onPress={() => WebBrowser.openBrowserAsync(MAR_GOV_UK_URL).catch(() => {})}>
+        <TouchableOpacity accessibilityRole="link" style={s.primaryBtn} onPress={() => WebBrowser.openBrowserAsync(MAR_GOV_UK_URL).catch(() => {})}>
           <Ionicons name="open-outline" size={16} color={colors.bg} />
           <Text style={s.primaryBtnText}>Claim on GOV.UK</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.secondaryBtn} onPress={() => WebBrowser.openBrowserAsync(MAR_P87_POST_URL).catch(() => {})}>
+        <TouchableOpacity accessibilityRole="link" style={s.secondaryBtn} onPress={() => WebBrowser.openBrowserAsync(MAR_P87_POST_URL).catch(() => {})}>
           <Text style={s.secondaryBtnText}>Claim by post (form P87)</Text>
         </TouchableOpacity>
       </View>
@@ -368,7 +368,7 @@ export default function MileageReliefScreen() {
         <Bullet text="The tax you get back cannot be more than the Income Tax you paid that year, and you must have paid tax in the year you claim for." />
       </View>
 
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         style={s.secondaryBtn}
         onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual", source: "mileage_relief" } } as never)}
       >
@@ -502,7 +502,7 @@ function YearCard({
       )}
 
       {!noMiles && (
-        <TouchableOpacity style={s.linkRow} onPress={onEditPaid}>
+        <TouchableOpacity accessibilityRole="button" style={s.linkRow} onPress={onEditPaid}>
           <Text style={s.link}>Change what your employer paid for {y.taxYear}</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.amber} />
         </TouchableOpacity>

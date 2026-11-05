@@ -163,7 +163,7 @@ export default function CommunitySettings() {
                 <Text style={styles.statusId}>{status.discordUserId}</Text>
               </Text>
             </View>
-            <Pressable
+            <Pressable accessibilityRole="button"
               style={[styles.btn, styles.btnSecondary]}
               onPress={openInvite}
               disabled={busy}
@@ -171,7 +171,7 @@ export default function CommunitySettings() {
               <Ionicons name="open-outline" size={16} color={TEXT_1} />
               <Text style={styles.btnSecondaryText}>Open community</Text>
             </Pressable>
-            <Pressable
+            <Pressable accessibilityRole="button"
               style={[styles.btn, styles.btnDanger]}
               onPress={handleDisconnect}
               disabled={busy}
@@ -192,7 +192,7 @@ export default function CommunitySettings() {
               Link your account to unlock the Pro Member badge (if you're Pro) and
               keep your community profile in sync.
             </Text>
-            <Pressable
+            <Pressable accessibilityRole="button"
               style={[styles.btn, styles.btnPrimary]}
               onPress={handleConnect}
               disabled={busy}
@@ -210,7 +210,7 @@ export default function CommunitySettings() {
                 </>
               )}
             </Pressable>
-            <Pressable
+            <Pressable accessibilityRole="button"
               style={[styles.btn, styles.btnSecondary]}
               onPress={openInvite}
               disabled={busy}

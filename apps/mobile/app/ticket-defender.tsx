@@ -475,6 +475,7 @@ function ResultCard({
       <Text style={[styles.sectionLabel, { marginTop: 16 }]}>FOR THE PDF (OPTIONAL)</Text>
       <TextInput
         style={styles.input}
+        accessibilityLabel="Notice reference (PCN number)"
         placeholder="Notice reference (PCN number)"
         placeholderTextColor={TEXT_3}
         value={reference}
@@ -485,6 +486,7 @@ function ResultCard({
       />
       <TextInput
         style={styles.input}
+        accessibilityLabel="Issued by"
         placeholder="Issued by (for example, the council)"
         placeholderTextColor={TEXT_3}
         value={issuer}
@@ -655,7 +657,7 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.inputBorder,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginTop: 10,

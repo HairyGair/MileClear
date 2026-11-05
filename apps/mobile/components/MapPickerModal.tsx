@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === "ios" ? 10 : 4,
     borderWidth: 1,
-    borderColor: "rgba(107, 114, 128, 0.3)",
+    borderColor: colors.inputBorder,
   },
   searchBarFocused: {
     borderColor: AMBER,

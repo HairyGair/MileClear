@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.inputBorder,
   },
   searchBtn: {
     backgroundColor: AMBER,

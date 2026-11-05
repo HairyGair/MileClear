@@ -767,7 +767,7 @@ export default function InvoiceFormScreen() {
         statusBarTranslucent
         onRequestClose={() => setShowClientPicker(false)}
       >
-        <TouchableOpacity
+        <TouchableOpacity accessible={false}
           style={styles.pickerBackdrop}
           activeOpacity={1}
           onPress={() => setShowClientPicker(false)}
@@ -859,6 +859,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minHeight: 46,
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
   },
   notesInput: {
     minHeight: 84,

@@ -219,7 +219,7 @@ export default function AdminDashboardScreen() {
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const TEXT_3 = "#94a3b8";
 const CARD_BG = "#0a1120";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 

@@ -914,7 +914,7 @@ const s = StyleSheet.create({
     minHeight: 56,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.inputBorder,
     backgroundColor: colors.surface,
     color: colors.text1,
     fontSize: 24,

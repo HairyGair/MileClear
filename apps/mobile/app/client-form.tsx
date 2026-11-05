@@ -286,6 +286,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
     minHeight: 46,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
   },
   notesInput: { minHeight: 84, textAlignVertical: "top", paddingTop: 12 },
   saveButton: {

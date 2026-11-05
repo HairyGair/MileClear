@@ -247,7 +247,7 @@ export default function ExpensesScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
         >
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: filterCategory === null }}
             style={[
               styles.filterChip,
               filterCategory === null && styles.filterChipActive,
@@ -265,7 +265,7 @@ export default function ExpensesScreen() {
             </Text>
           </TouchableOpacity>
           {EXPENSE_CATEGORIES.map((c) => (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: filterCategory === c.value }}
               key={c.value}
               style={[
                 styles.filterChip,

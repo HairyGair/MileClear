@@ -137,6 +137,7 @@ export function AcquisitionSourceCard({ assumeEligible, onFinished }: Acquisitio
           <TextInput
             value={otherText}
             onChangeText={setOtherText}
+            accessibilityLabel="Where did you hear about us, optional"
             placeholder="Where did you hear about us? (optional)"
             placeholderTextColor={colors.text3}
             style={st.input}
@@ -208,7 +209,7 @@ const st = StyleSheet.create({
   input: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.35)",
+    borderColor: colors.inputBorder,
     paddingVertical: 10,
     paddingHorizontal: 12,
     color: colors.text1,

@@ -603,7 +603,7 @@ const s = StyleSheet.create({
     marginTop: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.inputBorder,
     backgroundColor: colors.bg,
     paddingHorizontal: 12,
   },

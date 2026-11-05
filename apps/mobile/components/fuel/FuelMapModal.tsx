@@ -115,7 +115,7 @@ export default function FuelMapModal({
           <Text style={styles.fallbackText}>
             Map view requires a development build.
           </Text>
-          <TouchableOpacity style={styles.fallbackClose} onPress={onClose}>
+          <TouchableOpacity accessibilityRole="button" style={styles.fallbackClose} onPress={onClose}>
             <Text style={styles.fallbackCloseText}>Close</Text>
           </TouchableOpacity>
         </View>
@@ -169,7 +169,7 @@ export default function FuelMapModal({
         </MapViewNative>
 
         {/* Close button */}
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close map"
           style={[styles.closeBtn, { top: insets.top + 12 }]}
           onPress={onClose}
           activeOpacity={0.8}
@@ -178,7 +178,7 @@ export default function FuelMapModal({
         </TouchableOpacity>
 
         {/* Re-center button */}
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Centre map on my location"
           style={[styles.recenterBtn, { bottom: selected ? 200 : 120 }]}
           onPress={handleRecenter}
           activeOpacity={0.8}
@@ -221,7 +221,7 @@ export default function FuelMapModal({
                   </View>
                 </View>
               </View>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={styles.directionsBtn}
                 onPress={handleDirections}
                 activeOpacity={0.8}

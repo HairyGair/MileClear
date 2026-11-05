@@ -828,7 +828,7 @@ export default function DriveDetectionDiagnosticsScreen() {
     return (
       <View style={[styles.container, styles.center]}>
         <Text style={styles.errorText}>Failed to load diagnostics</Text>
-        <TouchableOpacity style={styles.button} onPress={load}>
+        <TouchableOpacity accessibilityRole="button" style={styles.button} onPress={load}>
           <Text style={styles.buttonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -1105,7 +1105,7 @@ export default function DriveDetectionDiagnosticsScreen() {
 
       {/* Actions */}
       <View style={styles.actionsRow}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[styles.button, busy && styles.buttonDisabled]}
           onPress={load}
           disabled={busy}
@@ -1113,7 +1113,7 @@ export default function DriveDetectionDiagnosticsScreen() {
           <Ionicons name="refresh" size={16} color={BG} />
           <Text style={styles.buttonText}>Refresh</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[styles.button, busy && styles.buttonDisabled]}
           onPress={handleShare}
           disabled={busy}
@@ -1124,7 +1124,7 @@ export default function DriveDetectionDiagnosticsScreen() {
       </View>
 
       <View style={styles.actionsRow}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[styles.buttonSecondary, busy && styles.buttonDisabled]}
           onPress={handleRestart}
           disabled={busy}
@@ -1132,7 +1132,7 @@ export default function DriveDetectionDiagnosticsScreen() {
           <Ionicons name="reload" size={16} color={TEXT_1} />
           <Text style={styles.buttonSecondaryText}>Restart detection</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[styles.buttonDanger, busy && styles.buttonDisabled]}
           onPress={handleClearEvents}
           disabled={busy}
@@ -1164,6 +1164,7 @@ export default function DriveDetectionDiagnosticsScreen() {
           </View>
           <Switch
             value={nativeOn}
+            accessibilityLabel="ClearTrack engine"
             onValueChange={handleToggleNative}
             disabled={busy || (!CAN_RUN_JS_ENGINE && nativeOn)}
             trackColor={{ true: AMBER, false: "#3f3f46" }}
@@ -1182,7 +1183,7 @@ export default function DriveDetectionDiagnosticsScreen() {
             (not wake/start detection). A test trip appears in your list; delete it after.
           </Text>
           <View style={[styles.actionsRow, { marginTop: 12 }]}>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[styles.buttonSecondary, busy && styles.buttonDisabled]}
               onPress={() => handleSimulate(0.8)}
               disabled={busy}
@@ -1190,7 +1191,7 @@ export default function DriveDetectionDiagnosticsScreen() {
               <Ionicons name="car-outline" size={16} color={TEXT_1} />
               <Text style={styles.buttonSecondaryText}>Short (0.8 mi)</Text>
             </TouchableOpacity>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={[styles.buttonSecondary, busy && styles.buttonDisabled]}
               onPress={() => handleSimulate(5)}
               disabled={busy}

@@ -217,11 +217,11 @@ export default function PlanSettings() {
                 {billingCopyFor(billingChannelFor(iapStore(), Platform.OS)).smallPrint}
               </Text>
               <View style={styles.subLegalLinks}>
-                <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>
+                <TouchableOpacity accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>
                   <Text style={styles.subLegalLink}>Terms of Use</Text>
                 </TouchableOpacity>
                 <Text style={styles.subLegalSep}>|</Text>
-                <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>
+                <TouchableOpacity accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>
                   <Text style={styles.subLegalLink}>Privacy Policy</Text>
                 </TouchableOpacity>
               </View>

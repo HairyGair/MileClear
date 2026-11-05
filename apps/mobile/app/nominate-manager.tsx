@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minHeight: 46,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.inputBorder,
   },
   errorBox: {
     flexDirection: "row",

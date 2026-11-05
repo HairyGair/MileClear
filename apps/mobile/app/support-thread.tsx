@@ -262,7 +262,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: colors.inputBorder,
   },
   attachButton: { width: 36, height: 42, alignItems: "center", justifyContent: "center" },
   sendButton: {

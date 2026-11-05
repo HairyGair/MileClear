@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.inputBorder,
     paddingHorizontal: 14,
   },
   inputWrapError: { borderColor: colors.red },

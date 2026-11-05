@@ -112,7 +112,7 @@ export function ChallengeModal({ visible, onClose }: ChallengeModalProps) {
             size="lg"
             onPress={handleAccept}
           />
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={s.declineBtn}
             onPress={handleDecline}
             activeOpacity={0.7}

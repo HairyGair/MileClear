@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.inputBorder,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.lg,
     minHeight: 48,

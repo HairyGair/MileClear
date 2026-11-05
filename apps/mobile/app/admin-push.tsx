@@ -301,7 +301,7 @@ const s = StyleSheet.create({
   input: {
     backgroundColor: INPUT_BG,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: colors.inputBorder,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,

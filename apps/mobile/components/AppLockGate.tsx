@@ -41,7 +41,7 @@ export function AppLockGate() {
         </View>
         <Text style={styles.title}>MileClear is locked</Text>
         <Text style={styles.sub}>{sub}</Text>
-        <TouchableOpacity style={styles.btn} onPress={() => void authenticate()} activeOpacity={0.85}>
+        <TouchableOpacity accessibilityRole="button" style={styles.btn} onPress={() => void authenticate()} activeOpacity={0.85}>
           <Text style={styles.btnText}>Unlock</Text>
         </TouchableOpacity>
       </View>

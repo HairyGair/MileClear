@@ -268,6 +268,7 @@ export default function HmrcReconciliationScreen() {
                   <TextInput
                     style={s.input}
                     keyboardType="decimal-pad"
+                    accessibilityLabel={`${row.label} income reported by the app, in pounds`}
                     placeholder="0.00"
                     placeholderTextColor={TEXT_3}
                     value={drafts[row.platform] ?? ""}
@@ -468,7 +469,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: colors.inputBorder,
   },
   trackedValue: {
     color: TEXT_1,

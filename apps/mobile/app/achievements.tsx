@@ -245,7 +245,7 @@ const s = StyleSheet.create({
     lineHeight: 12,
   },
   textLockedSoft: {
-    color: "#374151",
+    color: TEXT_3,
   },
   badgeDate: {
     fontSize: 11,

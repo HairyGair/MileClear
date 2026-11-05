@@ -291,7 +291,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: colors.inputBorder,
   },
   inputMultiline: {
     minHeight: 120,

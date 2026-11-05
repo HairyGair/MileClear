@@ -203,6 +203,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: colors.text1,
     paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    borderRadius: 8,
   },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
   sheet: {

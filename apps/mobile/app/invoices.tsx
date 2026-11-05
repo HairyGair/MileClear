@@ -249,7 +249,7 @@ export default function InvoicesScreen() {
       {/* Filter tabs */}
       <View style={styles.tabs}>
         {(Object.keys(TAB_LABELS) as FilterTab[]).map((t) => (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="tab" accessibilityState={{ selected: filter === t }}
             key={t}
             style={[styles.tab, filter === t && styles.tabActive]}
             onPress={() => setFilter(t)}
@@ -263,7 +263,7 @@ export default function InvoicesScreen() {
 
       {/* Free-tier monthly counter hint */}
       {showFreeCapHint && (
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.capHint}
           onPress={() => monthInvoiceCount >= 3 && showPaywall("invoice_tracker")}
           activeOpacity={monthInvoiceCount >= 3 ? 0.7 : 1}

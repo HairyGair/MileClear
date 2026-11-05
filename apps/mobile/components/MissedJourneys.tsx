@@ -553,7 +553,7 @@ export function MissedJourneys({
         </View>
       ))}
       {hidden > 0 && (
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.moreBtn}
           onPress={() => setVisibleCount((n) => n + PAGE_SIZE)}
           activeOpacity={0.7}

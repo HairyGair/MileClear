@@ -211,7 +211,7 @@ export default function ExpenseFormScreen() {
       >
         {/* Receipt scan shortcut (only on new) */}
         {!isEditing ? (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={styles.scanCta}
             onPress={() => router.push("/receipt-scan?target=expense")}
             activeOpacity={0.85}
@@ -228,6 +228,9 @@ export default function ExpenseFormScreen() {
           style={styles.picker}
           onPress={() => setCategoryPickerOpen(true)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Category, ${selectedCategory ? selectedCategory.label : "not chosen"}`}
+          accessibilityHint="Opens the list of categories"
         >
           <Text style={[styles.pickerText, !category && styles.placeholder]}>
             {selectedCategory ? selectedCategory.label : "Choose a category"}
@@ -250,6 +253,7 @@ export default function ExpenseFormScreen() {
           <TextInput
             style={[styles.input, styles.amountInput]}
             value={amount}
+            accessibilityLabel="Amount in pounds"
             onChangeText={setAmount}
             placeholder="0.00"
             placeholderTextColor={TEXT_3}
@@ -269,6 +273,7 @@ export default function ExpenseFormScreen() {
         <TextInput
           style={styles.input}
           value={vendor}
+          accessibilityLabel="Vendor or where"
           onChangeText={setVendor}
           placeholder="e.g. Shell, NCP, Halfords"
           placeholderTextColor={TEXT_3}
@@ -279,6 +284,7 @@ export default function ExpenseFormScreen() {
         <TextInput
           style={styles.input}
           value={description}
+          accessibilityLabel="Description, optional"
           onChangeText={setDescription}
           placeholder="What was it for?"
           placeholderTextColor={TEXT_3}
@@ -289,7 +295,7 @@ export default function ExpenseFormScreen() {
           <>
             <Text style={styles.fieldLabel}>Vehicle (optional)</Text>
             <View style={styles.vehicleRow}>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: vehicleId === null }}
                 style={[
                   styles.vehicleChip,
                   vehicleId === null && styles.vehicleChipActive,
@@ -307,7 +313,7 @@ export default function ExpenseFormScreen() {
                 </Text>
               </TouchableOpacity>
               {vehicles.map((v) => (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button" accessibilityState={{ selected: vehicleId === v.id }}
                   key={v.id}
                   style={[
                     styles.vehicleChip,
@@ -335,6 +341,7 @@ export default function ExpenseFormScreen() {
         <TextInput
           style={styles.input}
           value={projectLabel}
+          accessibilityLabel="Project or client, optional"
           onChangeText={setProjectLabel}
           placeholder="e.g. Theatre Royal tour, Acme Ltd"
           placeholderTextColor={TEXT_3}
@@ -345,6 +352,7 @@ export default function ExpenseFormScreen() {
         <TextInput
           style={[styles.input, styles.notesInput]}
           value={notes}
+          accessibilityLabel="Notes, optional"
           onChangeText={setNotes}
           placeholder="Anything else you want to remember"
           placeholderTextColor={TEXT_3}
@@ -361,7 +369,7 @@ export default function ExpenseFormScreen() {
             disabled={saving || deleting}
           />
           {isEditing ? (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               onPress={handleDelete}
               disabled={deleting}
               style={styles.deleteButton}
@@ -385,6 +393,7 @@ export default function ExpenseFormScreen() {
           style={styles.modalBackdrop}
           activeOpacity={1}
           onPress={() => setCategoryPickerOpen(false)}
+          accessible={false}
         >
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
@@ -402,6 +411,9 @@ export default function ExpenseFormScreen() {
                     setCategoryPickerOpen(false);
                   }}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: category === c.value }}
+                  accessibilityLabel={`${c.label}, SA103S box ${c.sa103sBox}`}
                 >
                   <View style={styles.modalItemBody}>
                     <Text style={styles.modalItemLabel}>{c.label}</Text>
@@ -497,7 +509,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.inputBorder,
   },
   amountRow: {
     flexDirection: "row",

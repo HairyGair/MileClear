@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.inputBorder,
   },
   amountRow: {
     flexDirection: "row",

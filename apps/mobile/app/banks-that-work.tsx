@@ -22,7 +22,6 @@ import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
-const CARD_BORDER = "rgba(255,255,255,0.08)";
 const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
@@ -212,7 +211,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderColor: colors.inputBorder,
   },
   problem: {
     fontSize: 13,

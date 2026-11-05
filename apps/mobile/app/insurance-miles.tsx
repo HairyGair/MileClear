@@ -192,7 +192,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.text1,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.inputBorder,
   },
   error: { fontSize: 13, fontFamily: fonts.medium, color: colors.red, marginTop: 6 },
   hint: { fontSize: 13, fontFamily: fonts.regular, color: colors.text3, marginTop: 6, lineHeight: 18 },

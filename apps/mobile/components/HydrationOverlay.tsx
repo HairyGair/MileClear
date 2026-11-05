@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   counter: {
     fontFamily: fonts.regular,
     fontSize: 12,
-    color: "rgba(132, 148, 167, 0.5)",
+    color: "#8494a7",
     textAlign: "center",
   },
   slowNote: {

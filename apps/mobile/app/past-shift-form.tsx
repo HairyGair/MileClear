@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.text1,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.inputBorder,
   },
   amountInput: {
     flex: 1,

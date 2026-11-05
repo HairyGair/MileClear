@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
   },
   avgDivider: {
     fontSize: 14,
-    color: "#374151",
+    color: colors.text3,
   },
   // Station cards
   stationCard: {

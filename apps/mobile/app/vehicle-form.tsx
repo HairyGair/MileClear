@@ -1065,7 +1065,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.inputBorder,
   },
   odoInputWrap: {
     flexDirection: "row",
@@ -1073,7 +1073,7 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.inputBorder,
     paddingHorizontal: 14,
   },
   odoInput: {
@@ -1100,7 +1100,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: 2,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.inputBorder,
     textTransform: "uppercase",
   },
   plateWarning: {

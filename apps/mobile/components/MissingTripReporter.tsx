@@ -767,6 +767,7 @@ export function MissingTripReporter({
                   )}
                   <TextInput
                     style={styles.input}
+                    accessibilityLabel="Anything else, optional"
                     placeholder="Anything else? (optional)"
                     placeholderTextColor={colors.text3}
                     value={note}
@@ -775,7 +776,7 @@ export function MissingTripReporter({
                     maxLength={1000}
                     editable={!sending}
                   />
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={[styles.send, (sending || !canSend) && styles.sendDisabled]}
                     onPress={submit}
                     disabled={sending || !canSend}
@@ -790,7 +791,7 @@ export function MissingTripReporter({
                       <Text style={styles.sendText}>Send</Text>
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.cancel} onPress={closeForm} activeOpacity={0.7}>
+                  <TouchableOpacity accessibilityRole="button" style={styles.cancel} onPress={closeForm} activeOpacity={0.7}>
                     <Text style={styles.cancelText}>Cancel</Text>
                   </TouchableOpacity>
                 </>
@@ -805,7 +806,7 @@ export function MissingTripReporter({
                   </Text>
                   {tripSummary}
                   {pauseBanner}
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={[styles.send, adding && styles.sendDisabled]}
                     onPress={addThisTrip}
                     disabled={adding}
@@ -820,7 +821,7 @@ export function MissingTripReporter({
                       <Text style={styles.sendText}>Add this trip</Text>
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={styles.cancel}
                     onPress={() => {
                       trackReportEvent("trip.report_missing_self_add_skipped", {});
@@ -853,7 +854,7 @@ export function MissingTripReporter({
                     maxLength={7}
                     accessibilityLabel={dist.isKm ? "Kilometres driven" : "Miles driven"}
                   />
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={[styles.send, (adding || typedMiles === null) && styles.sendDisabled]}
                     onPress={addWithTypedMiles}
                     disabled={adding || typedMiles === null}
@@ -865,7 +866,7 @@ export function MissingTripReporter({
                       <Text style={styles.sendText}>Add trip</Text>
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={styles.cancel}
                     onPress={addThisTrip}
                     activeOpacity={0.7}
@@ -873,7 +874,7 @@ export function MissingTripReporter({
                   >
                     <Text style={styles.cancelText}>Try the road distance again</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.cancel} onPress={close} activeOpacity={0.7} disabled={adding}>
+                  <TouchableOpacity accessibilityRole="button" style={styles.cancel} onPress={close} activeOpacity={0.7} disabled={adding}>
                     <Text style={styles.cancelText}>Not now</Text>
                   </TouchableOpacity>
                 </>
@@ -1055,7 +1056,7 @@ const styles = StyleSheet.create({
     minHeight: 72,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    borderColor: colors.inputBorder,
     backgroundColor: colors.bg,
     color: colors.text1,
     fontFamily: fonts.regular,

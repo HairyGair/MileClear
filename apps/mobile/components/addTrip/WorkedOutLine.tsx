@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.amberGlow,
+    borderColor: colors.inputBorder,
     backgroundColor: colors.bg,
     color: colors.text1,
     fontFamily: fonts.semibold,

@@ -303,7 +303,7 @@ const s = StyleSheet.create({
   applyHint: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_3, lineHeight: 17, marginBottom: 12 },
   applyRow: { flexDirection: "row", gap: 10 },
   applyInput: {
-    flex: 1, backgroundColor: colors.bg, borderRadius: 10, borderWidth: 1, borderColor: BORDER,
+    flex: 1, backgroundColor: colors.bg, borderRadius: 10, borderWidth: 1, borderColor: colors.inputBorder,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, fontFamily: fonts.semibold, color: TEXT_1, letterSpacing: 2,
   },
   applyBtn: {
