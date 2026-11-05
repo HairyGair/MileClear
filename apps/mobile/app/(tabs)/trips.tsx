@@ -1358,15 +1358,41 @@ export default function TripsScreen() {
         accessibilityLabel={
           mergeMode
             ? `${isSelected ? "Deselect" : "Select"} ${route}, ${formatDate(item.startedAt)}, ${dist.fmt(item.distanceMiles, { fixed: true, style: "spoken" })}`
-            : `${route}. ${formatDate(item.startedAt)} at ${formatTime(item.startedAt)}, ${dist.fmt(item.distanceMiles, { fixed: true, style: "spoken" })}${platformLabel ? `, ${platformLabel}` : ""}, ${sortedWord}${tagWords}. Tap to open. Swipe right to mark ${targetLabel}. Swipe left to delete.`
+            : `${route}. ${formatDate(item.startedAt)} at ${formatTime(item.startedAt)}, ${dist.fmt(item.distanceMiles, { fixed: true, style: "spoken" })}${platformLabel ? `, ${platformLabel}` : ""}, ${sortedWord}${tagWords}. Tap to open.`
         }
         accessibilityState={mergeMode ? { selected: isSelected } : undefined}
-        accessibilityHint={mergeMode ? undefined : "Long press for more options"}
         accessibilityActions={
-          !mergeMode && isRecentAuto ? [{ name: "undo", label: "Put back in To sort" }] : undefined
+          mergeMode
+            ? undefined
+            : [
+                { name: "classify", label: `Mark as ${targetLabel}` },
+                ...(isRecentAuto ? [{ name: "undo", label: "Put back in To sort" }] : []),
+                { name: "note", label: "Add or edit note" },
+                ...(item._isLocal ? [] : [{ name: "join", label: "Join trips" }]),
+                { name: "delete", label: "Delete trip" },
+              ]
         }
         onAccessibilityAction={(e) => {
-          if (e.nativeEvent.actionName === "undo") handleUndoClassification(item.id);
+          // The same handlers the swipe and the long-press menu use, so a
+          // delete still asks first.
+          switch (e.nativeEvent.actionName) {
+            case "classify":
+              handleSwipeClassify(item, targetClass);
+              break;
+            case "undo":
+              handleUndoClassification(item.id);
+              break;
+            case "note":
+              setEditingNoteId(item.id);
+              break;
+            case "join":
+              setMergeMode(true);
+              setSelectedIds(new Set([item.id]));
+              break;
+            case "delete":
+              handleDeleteTrip(item.id);
+              break;
+          }
         }}
       >
         <View style={styles.tripMainRow}>
