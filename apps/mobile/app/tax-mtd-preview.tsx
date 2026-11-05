@@ -27,6 +27,7 @@ import {
   MISTAKE_LATER_TEXT,
   type HmrcEnv,
 } from "../lib/tax/mtdCopy";
+import { useAnnounceError } from "../lib/a11y/announce";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import {
   fetchHmrcStatus,
@@ -82,6 +83,7 @@ export default function TaxMtdPreviewScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useAnnounceError(error);
   const [fetchedEnv, setFetchedEnv] = useState<HmrcEnv>(null);
   const fallbackEnv = useHmrcEnvironment();
   const env = fetchedEnv ?? fallbackEnv;
@@ -251,8 +253,8 @@ export default function TaxMtdPreviewScreen() {
       <View style={[styles.center, { flex: 1, backgroundColor: BG, padding: 24 }]}>
         <Stack.Screen options={screenOptions} />
         <Ionicons name="alert-circle-outline" size={48} color={RED} />
-        <Text style={[styles.title, { marginTop: 16 }]}>Couldn't work out your update</Text>
-        <Text style={styles.body}>{error ?? "Something went wrong."}</Text>
+        <Text accessibilityRole="header" style={[styles.title, { marginTop: 16 }]}>Couldn't work out your update</Text>
+        <Text style={styles.body} accessibilityLiveRegion="polite">{error ?? "Something went wrong."}</Text>
       </View>
     );
   }
@@ -355,12 +357,12 @@ export default function TaxMtdPreviewScreen() {
 
         {checks.length > 0 && (
           <>
-            <Text style={styles.section}>CHECK BEFORE YOU SEND</Text>
+            <Text accessibilityRole="header" style={styles.section}>CHECK BEFORE YOU SEND</Text>
             <PreSendChecks checks={checks} onAction={onCheckAction} />
           </>
         )}
 
-        <Text style={styles.section}>WHAT HMRC WILL SEE</Text>
+        <Text accessibilityRole="header" style={styles.section}>WHAT HMRC WILL SEE</Text>
         <View style={styles.listCard}>
           {sources.map((s, i) => (
             <View key={s.id} style={i > 0 && styles.listBorder}>

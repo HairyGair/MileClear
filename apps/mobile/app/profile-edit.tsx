@@ -112,6 +112,8 @@ export default function ProfileEditScreen() {
           onChangeText={setFullName}
           placeholder="Your legal name"
           placeholderTextColor={TEXT_3}
+          textContentType="name"
+          autoComplete="name"
           autoCapitalize="words"
           maxLength={200}
           accessibilityLabel="Full name, used on PDF exports and tax documents"
@@ -125,6 +127,8 @@ export default function ProfileEditScreen() {
           onChangeText={setDisplayName}
           placeholder="Nickname"
           placeholderTextColor={TEXT_3}
+          textContentType="nickname"
+          autoComplete="nickname"
           autoCapitalize="words"
           maxLength={100}
           accessibilityLabel="Display name, public nickname, optional"
@@ -138,6 +142,8 @@ export default function ProfileEditScreen() {
           placeholder="your@email.com"
           placeholderTextColor={TEXT_3}
           keyboardType="email-address"
+          textContentType="emailAddress"
+          autoComplete="email"
           autoCapitalize="none"
           autoCorrect={false}
           accessibilityLabel="Email address"
@@ -168,6 +174,8 @@ export default function ProfileEditScreen() {
               placeholder="Enter current password"
               placeholderTextColor={TEXT_3}
               secureTextEntry
+              textContentType="password"
+              autoComplete="current-password"
               accessibilityLabel="Current password, required to change email"
             />
           </>

@@ -17,6 +17,7 @@ import { useAuth } from "../../lib/auth/context";
 import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
 import { getDatabase } from "../../lib/db";
 import { colors, fonts } from "../../lib/theme";
+import { useAnnounceError } from "../../lib/a11y/announce";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
 try { AppleAuthentication = require("expo-apple-authentication"); } catch {}
@@ -37,6 +38,7 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState("");
+  useAnnounceError(error);
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -144,7 +146,7 @@ export default function RegisterScreen() {
 
         {/* Form card */}
         <View style={s.card}>
-          <Text style={s.title}>Get started</Text>
+          <Text style={s.title} accessibilityRole="header">Get started</Text>
 
           {error ? (
             <View
@@ -193,6 +195,8 @@ export default function RegisterScreen() {
             placeholder="you@example.com"
             placeholderTextColor={TEXT_3}
             keyboardType="email-address"
+            textContentType="emailAddress"
+            autoComplete="email"
             autoCapitalize="none"
             autoCorrect={false}
             editable={!loading}
@@ -208,6 +212,9 @@ export default function RegisterScreen() {
             onBlur={() => setFocusedField(null)}
             placeholder="Optional"
             placeholderTextColor={TEXT_3}
+            textContentType="name"
+            autoComplete="name"
+            autoCapitalize="words"
             autoCorrect={false}
             editable={!loading}
             accessibilityLabel="Display name"
@@ -223,6 +230,8 @@ export default function RegisterScreen() {
             placeholder="At least 8 characters"
             placeholderTextColor={TEXT_3}
             secureTextEntry
+            textContentType="newPassword"
+            autoComplete="new-password"
             editable={!loading}
             accessibilityLabel="Password"
           />
@@ -237,6 +246,8 @@ export default function RegisterScreen() {
             placeholder="Re-enter your password"
             placeholderTextColor={TEXT_3}
             secureTextEntry
+            textContentType="newPassword"
+            autoComplete="new-password"
             editable={!loading}
             accessibilityLabel="Confirm password"
           />

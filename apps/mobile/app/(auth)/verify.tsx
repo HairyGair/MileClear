@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useAuth } from "../../lib/auth/context";
 import { colors, fonts } from "../../lib/theme";
+import { useAnnounceError } from "../../lib/a11y/announce";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -26,6 +27,7 @@ export default function VerifyScreen() {
   const { completeAuth, sendVerificationCode, verifyEmail } = useAuth();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  useAnnounceError(error);
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
@@ -109,7 +111,7 @@ export default function VerifyScreen() {
 
         {/* Card */}
         <View style={s.card}>
-          <Text style={s.title}>Check your email</Text>
+          <Text style={s.title} accessibilityRole="header">Check your email</Text>
           <Text style={s.subtitle}>
             {sent
               ? "We've sent a 6-digit verification code to your email address."
@@ -135,6 +137,8 @@ export default function VerifyScreen() {
             placeholder="000000"
             placeholderTextColor={TEXT_3}
             keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            autoComplete="one-time-code"
             maxLength={6}
             autoFocus
             editable={!loading}

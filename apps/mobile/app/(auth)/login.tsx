@@ -20,6 +20,7 @@ import { useAuth } from "../../lib/auth/context";
 import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
 import { RouteHero } from "../../components/auth/RouteHero";
 import { colors, fonts } from "../../lib/theme";
+import { useAnnounceError } from "../../lib/a11y/announce";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
 try { AppleAuthentication = require("expo-apple-authentication"); } catch {}
@@ -41,6 +42,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  useAnnounceError(error);
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"apple" | "google" | null>(null);
   const [focusedField, setFocusedField] = useState<"email" | "password" | null>(null);

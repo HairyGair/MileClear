@@ -657,7 +657,7 @@ function ReadyStep({
     return (
       <View style={styles.stepCard}>
         <Ionicons name="alert-circle-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-        <Text style={styles.stepTitle}>
+        <Text accessibilityRole="header" style={styles.stepTitle}>
           {expired ? (test ? "Your test connection has expired" : "Your connection to HMRC has expired") : "Couldn't load your updates"}
         </Text>
         <Text style={styles.stepBody}>
@@ -684,7 +684,7 @@ function ReadyStep({
     return (
       <View style={styles.stepCard}>
         <Ionicons name="checkmark-circle-outline" size={48} color={GREEN} style={{ alignSelf: "center" }} />
-        <Text style={styles.stepTitle}>Nothing to send yet</Text>
+        <Text accessibilityRole="header" style={styles.stepTitle}>Nothing to send yet</Text>
         <Text style={styles.stepBody}>
           HMRC hasn't listed a quarterly update for you right now. We'll show your next period here as
           soon as it's available.

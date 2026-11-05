@@ -177,7 +177,7 @@ export default function TaxMtdSubmittedScreen() {
           </View>
         )}
 
-        <Text style={styles.section}>YOUR TAX SO FAR</Text>
+        <Text accessibilityRole="header" style={styles.section}>YOUR TAX SO FAR</Text>
 
         {(calc.status === "triggering" || calc.status === "polling") && (
           <View style={styles.waiting}>
@@ -214,7 +214,7 @@ export default function TaxMtdSubmittedScreen() {
 
         {taxYear ? (
           <>
-            <Text style={styles.section}>WHAT HAPPENS NEXT</Text>
+            <Text accessibilityRole="header" style={styles.section}>WHAT HAPPENS NEXT</Text>
             <View style={styles.nextCard}>
               {next.map((n, i) => (
                 <NextRow

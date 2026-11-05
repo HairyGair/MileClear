@@ -491,11 +491,15 @@ export function LiveMapTracker({
           style={[styles.controlBtn, showTrail && styles.controlBtnActive]}
           onPress={handleToggleTrail}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Show route trail on map"
+          accessibilityState={{ selected: showTrail }}
         >
           <Ionicons
             name={showTrail ? "trail-sign" : "trail-sign-outline"}
             size={18}
             color={showTrail ? BG : TEXT_2}
+            accessible={false}
           />
         </TouchableOpacity>
 
@@ -505,8 +509,10 @@ export function LiveMapTracker({
             style={styles.controlBtn}
             onPress={handleRecenter}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Centre map on my location"
           >
-            <Ionicons name="locate-outline" size={18} color={TEXT_2} />
+            <Ionicons name="locate-outline" size={18} color={TEXT_2} accessible={false} />
           </TouchableOpacity>
         )}
       </View>

@@ -14,6 +14,7 @@ import {
 import { Link, router } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
 import { colors, fonts } from "../../lib/theme";
+import { useAnnounceError } from "../../lib/a11y/announce";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -27,6 +28,7 @@ export default function ForgotPasswordScreen() {
   const { forgotPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  useAnnounceError(error);
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
@@ -76,7 +78,7 @@ export default function ForgotPasswordScreen() {
 
         {/* Card */}
         <View style={s.card}>
-          <Text style={s.title}>Forgot password?</Text>
+          <Text style={s.title} accessibilityRole="header">Forgot password?</Text>
           <Text style={s.subtitle}>
             Enter your email and we'll send you a code to reset your password.
           </Text>
@@ -104,6 +106,8 @@ export default function ForgotPasswordScreen() {
             placeholder="you@example.com"
             placeholderTextColor={TEXT_3}
             keyboardType="email-address"
+            textContentType="emailAddress"
+            autoComplete="email"
             autoCapitalize="none"
             autoCorrect={false}
             autoFocus

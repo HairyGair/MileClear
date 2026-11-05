@@ -90,7 +90,7 @@ export default function TaxMtdBusinessScreen() {
       <View style={[styles.center, { flex: 1, backgroundColor: BG, padding: 24 }]}>
         <Stack.Screen options={{ title: "Confirm trade", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
         <Ionicons name="alert-circle-outline" size={48} color={TEXT_3} />
-        <Text style={[styles.title, { marginTop: 16 }]}>Couldn't load business details</Text>
+        <Text accessibilityRole="header" style={[styles.title, { marginTop: 16 }]}>Couldn't load business details</Text>
         <Text style={styles.body}>{error ?? "Unknown error."}</Text>
       </View>
     );
@@ -108,7 +108,7 @@ export default function TaxMtdBusinessScreen() {
       )}
       <View style={styles.card}>
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-        <Text style={styles.title}>{details.tradingName ?? "Self-Employment"}</Text>
+        <Text accessibilityRole="header" style={styles.title}>{details.tradingName ?? "Self-Employment"}</Text>
 
         <View style={styles.divider} />
 

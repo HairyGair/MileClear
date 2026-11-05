@@ -65,7 +65,7 @@ export default function AppHeader({
       <View style={[styles.left, !title && styles.leftBrand]}>
         {showBack && <HeaderBackButton />}
         {title ? (
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
             {title}
           </Text>
         ) : (
@@ -74,7 +74,7 @@ export default function AppHeader({
             activeOpacity={0.7}
             style={styles.brand}
             accessibilityRole="button"
-            accessibilityLabel="Go to dashboard"
+            accessibilityLabel="MileClear, go to Home"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Image

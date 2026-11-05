@@ -19,6 +19,7 @@ import { BetaBanner } from "../components/BetaBanner";
 import { isMtdTest } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { colors, fonts } from "../lib/theme";
+import { useAnnounceError } from "../lib/a11y/announce";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -31,6 +32,15 @@ const RED = colors.red;
 // UK NINO regex — same one the API enforces. Mirrored client-side so
 // invalid entries don't make the round-trip.
 const NINO_REGEX = /^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}\d{6}[A-D]?$/i;
+
+const FORMAT_ADVICE = "A National Insurance number is 2 letters, 6 numbers, then A, B, C or D, for example QQ 12 34 56 C.";
+const WRONG_MESSAGE = `That doesn't look right. ${FORMAT_ADVICE}`;
+const EMPTY_MESSAGE = `Enter your National Insurance number. ${FORMAT_ADVICE}`;
+
+// Resting outline for the field. #708096 measures 5.0:1 on the field's own
+// background (#030712) and 4.7:1 on the card behind it (#0a1120), so the
+// boundary clears the 3:1 minimum for UI components (WCAG 1.4.11).
+const FIELD_OUTLINE = "#708096";
 
 function normalise(raw: string): string {
   return raw.replace(/\s+/g, "").toUpperCase();
@@ -46,16 +56,27 @@ function formatForDisplay(raw: string): string {
 export default function TaxMtdNinoScreen() {
   const [nino, setNino] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [triedSave, setTriedSave] = useState(false);
   const test = isMtdTest(useHmrcEnvironment());
 
   const normalised = normalise(nino);
   const isValid = NINO_REGEX.test(normalised);
 
-  const onSubmit = useCallback(async () => {
-    if (!isValid) {
-      Alert.alert("Check your National Insurance number", "That doesn't look like a valid UK National Insurance Number.");
-      return;
+  // Say what is wrong in words (colour alone is not enough): after a Save press,
+  // or once a full-length value has been typed and still does not fit.
+  let errorText: string | null = null;
+  if (!isValid) {
+    if (normalised.length === 0) {
+      if (triedSave) errorText = EMPTY_MESSAGE;
+    } else if (triedSave || normalised.length >= 8) {
+      errorText = WRONG_MESSAGE;
     }
+  }
+  useAnnounceError(errorText);
+
+  const onSubmit = useCallback(async () => {
+    setTriedSave(true);
+    if (!isValid) return;
     setSubmitting(true);
     try {
       await setHmrcNino(normalised);
@@ -84,7 +105,7 @@ export default function TaxMtdNinoScreen() {
         )}
         <View style={styles.card}>
           <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-          <Text style={styles.title}>Your National Insurance number</Text>
+          <Text accessibilityRole="header" style={styles.title}>Your National Insurance number</Text>
           <Text style={styles.body}>
             {test
               ? "HMRC uses your National Insurance Number to identify your tax record. It's stored encrypted on MileClear's server and only used for the test connection."
@@ -95,7 +116,7 @@ export default function TaxMtdNinoScreen() {
           <TextInput
             style={[
               styles.input,
-              isValid ? styles.inputValid : nino.length > 0 ? styles.inputInvalid : null,
+              isValid ? styles.inputValid : errorText ? styles.inputInvalid : null,
             ]}
             value={formatForDisplay(nino)}
             onChangeText={(text) => setNino(text)}
@@ -106,18 +127,24 @@ export default function TaxMtdNinoScreen() {
             spellCheck={false}
             maxLength={13}
             accessibilityLabel="National Insurance Number"
+            accessibilityHint={errorText ?? "2 letters, 6 numbers, then A, B, C or D"}
           />
+          {errorText ? (
+            <Text style={styles.errorText} accessibilityLiveRegion="polite">
+              {errorText}
+            </Text>
+          ) : null}
           <Text style={styles.hint}>
             Find it on your payslip, P60, or in your HMRC personal tax account.
           </Text>
 
           <TouchableOpacity
-            style={[styles.primaryButton, (!isValid || submitting) && styles.buttonDisabled]}
+            style={[styles.primaryButton, submitting && styles.buttonDisabled]}
             onPress={onSubmit}
-            disabled={!isValid || submitting}
+            disabled={submitting}
             accessibilityRole="button"
             accessibilityLabel="Save National Insurance number"
-            accessibilityState={{ disabled: !isValid || submitting }}
+            accessibilityState={{ disabled: submitting, busy: submitting }}
           >
             {submitting ? (
               <ActivityIndicator color="#000" />
@@ -174,11 +201,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "transparent",
+    borderColor: FIELD_OUTLINE,
     marginTop: 6,
   },
   inputValid: { borderColor: AMBER },
   inputInvalid: { borderColor: RED },
+  errorText: { color: "#f87171", fontSize: 13, lineHeight: 18, marginTop: 8, fontFamily: fonts.regular },
   hint: { color: TEXT_3, fontSize: 12, marginTop: 8, fontFamily: fonts.regular },
   primaryButton: {
     backgroundColor: AMBER,

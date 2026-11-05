@@ -57,7 +57,7 @@ export function YearEndLiveGate({ children }: { children: ReactNode }) {
 export function Section({ title, step, children }: { title: string; step?: string; children: ReactNode }) {
   return (
     <View style={partStyles.section}>
-      <Text style={partStyles.sectionTitle}>{step ? `${step} · ${title}` : title}</Text>
+      <Text accessibilityRole="header" style={partStyles.sectionTitle}>{step ? `${step} · ${title}` : title}</Text>
       {children}
     </View>
   );

@@ -22,7 +22,7 @@ export default function TaxMtdSendsScreen() {
             style={{ marginTop: 1 }}
           />
           <View style={{ flex: 1 }}>
-            <Text style={styles.heading} maxFontSizeMultiplier={fontScaleCap.heading}>{s.heading}</Text>
+            <Text accessibilityRole="header" style={styles.heading} maxFontSizeMultiplier={fontScaleCap.heading}>{s.heading}</Text>
             <Text style={styles.text} maxFontSizeMultiplier={fontScaleCap.body}>{s.body}</Text>
           </View>
         </View>

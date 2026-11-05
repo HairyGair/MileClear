@@ -14,6 +14,7 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
 import { colors, fonts } from "../../lib/theme";
+import { useAnnounceError } from "../../lib/a11y/announce";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -31,6 +32,7 @@ export default function ResetPasswordScreen() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  useAnnounceError(error);
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
@@ -90,7 +92,7 @@ export default function ResetPasswordScreen() {
 
         {/* Card */}
         <View style={s.card}>
-          <Text style={s.title}>Enter reset code</Text>
+          <Text style={s.title} accessibilityRole="header">Enter reset code</Text>
           <Text style={s.subtitle}>
             We sent a 6-digit code to {email || "your email"}. Enter it below
             with your new password.
@@ -114,6 +116,8 @@ export default function ResetPasswordScreen() {
             placeholder="000000"
             placeholderTextColor={TEXT_3}
             keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            autoComplete="one-time-code"
             maxLength={6}
             autoFocus
             editable={!loading}
@@ -130,6 +134,8 @@ export default function ResetPasswordScreen() {
             placeholder="At least 8 characters"
             placeholderTextColor={TEXT_3}
             secureTextEntry
+            textContentType="newPassword"
+            autoComplete="new-password"
             editable={!loading}
             accessibilityLabel="New password"
           />
@@ -144,6 +150,8 @@ export default function ResetPasswordScreen() {
             placeholder="Re-enter your password"
             placeholderTextColor={TEXT_3}
             secureTextEntry
+            textContentType="newPassword"
+            autoComplete="new-password"
             editable={!loading}
             accessibilityLabel="Confirm new password"
           />
