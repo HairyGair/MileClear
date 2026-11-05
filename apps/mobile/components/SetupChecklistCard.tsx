@@ -19,6 +19,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 export interface SetupChecklistRow {
   key: string;
@@ -42,6 +43,7 @@ interface Props {
 }
 
 export function SetupChecklistCard({ rows, done, total, onSnooze }: Props) {
+  const largeText = useLargeText();
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
     <View style={s.card}>
@@ -93,7 +95,7 @@ export function SetupChecklistCard({ rows, done, total, onSnooze }: Props) {
                 accessible={false}
               />
               <View style={{ flex: 1 }}>
-                <Text style={[s.rowLabel, r.done && s.rowLabelDone]}>
+                <Text style={[s.rowLabel, r.done && s.rowLabelDone]} numberOfLines={largeText ? undefined : 1}>
                   {r.label}
                 </Text>
                 {!r.done ? <Text style={s.rowHint}>{r.hint}</Text> : null}

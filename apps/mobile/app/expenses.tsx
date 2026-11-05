@@ -17,6 +17,7 @@ import { Button } from "../components/Button";
 import type { Expense } from "@mileclear/shared";
 import { EXPENSE_CATEGORIES, formatPence } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 const AMBER = colors.amber;
 const BG = colors.bg;
@@ -68,6 +69,7 @@ function ExpenseCard({
   onPress: () => void;
   onDelete: () => void;
 }) {
+  const largeText = useLargeText();
   const label = CATEGORY_LABEL[item.category] ?? item.category;
   const iconName = CATEGORY_ICON[item.category] ?? "receipt-outline";
 
@@ -87,7 +89,7 @@ function ExpenseCard({
 
       <View style={styles.cardBody}>
         <View style={styles.cardTopRow}>
-          <Text style={styles.cardCategory}>
+          <Text style={styles.cardCategory} numberOfLines={largeText ? undefined : 1}>
             {label}
           </Text>
           <Text style={styles.cardAmount}>{formatPence(item.amountPence)}</Text>

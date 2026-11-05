@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   card: { ...shared.card, paddingVertical: spacing.lg },
-  topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  topRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   big: {
     fontFamily: fonts.bold,
     fontSize: numberSizes.stat + 4,

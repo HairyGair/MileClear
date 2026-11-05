@@ -8,6 +8,7 @@ import { useMode } from "../../lib/mode/context";
 import type { AppMode } from "../../lib/mode/index";
 import { haptic } from "../../lib/haptics";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 const SEGMENTS: { label: string; value: AppMode }[] = [
   { label: "Work", value: "work" },
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function ModePill({ variant = "header", onChange }: Props) {
+  const largeText = useLargeText();
   const { mode, setMode } = useMode();
   const row = variant === "row";
 
@@ -50,6 +52,7 @@ export function ModePill({ variant = "header", onChange }: Props) {
             <Text
               style={[s.label, active && s.labelActive]}
               maxFontSizeMultiplier={fontScaleCap.display}
+              numberOfLines={largeText ? undefined : 1}
             >
               {seg.label}
             </Text>

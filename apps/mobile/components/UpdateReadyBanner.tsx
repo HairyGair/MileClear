@@ -2,20 +2,21 @@
 // (lib/updates/updateReady.ts). Restart is the one action; the cross hides it
 // until the app next comes back to the screen.
 
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, fonts, fontScaleCap, tabBar } from "../lib/theme";
+import { colors, fonts, fontScaleCap, tabBarContentHeight } from "../lib/theme";
 import { useUpdateReady } from "../lib/updates/updateReady";
 
 export function UpdateReadyBanner() {
   const { visible, restart, later } = useUpdateReady();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   if (!visible) return null;
 
   return (
     <View
-      style={[styles.wrap, { bottom: tabBar.contentHeight + insets.bottom + 8 }]}
+      style={[styles.wrap, { bottom: tabBarContentHeight(fontScale) + insets.bottom + 8 }]}
       accessibilityLiveRegion="polite"
     >
       <Ionicons name="sparkles-outline" size={18} color={colors.amber} accessible={false} />

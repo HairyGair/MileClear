@@ -6,6 +6,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 interface Props {
   /** Drives to check, or null while not known (then nothing shows). */
@@ -18,6 +19,7 @@ export function missedDrivesText(count: number): string {
 }
 
 export function MissedDrivesStrip({ count, onPress }: Props) {
+  const largeText = useLargeText();
   if (!count || count <= 0) return null;
   const text = missedDrivesText(count);
   return (
@@ -30,7 +32,7 @@ export function MissedDrivesStrip({ count, onPress }: Props) {
     >
       <Ionicons name="git-compare-outline" size={18} color={colors.amber} accessible={false} />
       <View style={s.textWrap}>
-        <Text style={s.title} maxFontSizeMultiplier={fontScaleCap.body}>
+        <Text style={s.title} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.body}>
           {text}
         </Text>
       </View>

@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { homeOdometerA11y, homeOdometerFigure, homeOdometerLine, type HomeOdometerRow } from "../../lib/home/odometerCard";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 interface Props {
   rows: HomeOdometerRow[];
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function OdometerCard({ rows, mode, state, onHide }: Props) {
+  const largeText = useLargeText();
   const router = useRouter();
 
   const confirmHide = useCallback(() => {
@@ -61,7 +63,7 @@ export function OdometerCard({ rows, mode, state, onHide }: Props) {
             >
               <Ionicons name="speedometer-outline" size={20} color={colors.text2} accessible={false} />
               <View style={s.body}>
-                <Text style={s.label} maxFontSizeMultiplier={fontScaleCap.body}>
+                <Text style={s.label} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>
                   {row.name} odometer
                 </Text>
                 <View style={s.figureRow}>
@@ -108,7 +110,7 @@ const s = StyleSheet.create({
   pressed: { backgroundColor: "rgba(255,255,255,0.04)" },
   body: { flex: 1 },
   label: { fontSize: 13, fontFamily: fonts.medium, color: colors.text2 },
-  figureRow: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 2 },
+  figureRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", gap: 6, marginTop: 2 },
   figure: { fontSize: 20, fontFamily: fonts.semibold, color: colors.text1, fontVariant: ["tabular-nums"] },
   est: { fontSize: 13, fontFamily: fonts.medium, color: colors.text2 },
   line: { fontSize: 13, fontFamily: fonts.regular, color: colors.text3, marginTop: 2, lineHeight: 18 },

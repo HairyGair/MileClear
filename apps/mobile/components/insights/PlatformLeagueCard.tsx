@@ -27,6 +27,7 @@ import {
 } from "../../lib/insights/platformLeague";
 import { chart, colors, fonts, fontScaleCap, spacing } from "../../lib/theme";
 import { InsightCard, CardSkeleton, CardError, type InsightCardProps } from "./work/InsightCardUi";
+import { useLargeText } from "../../lib/accessibility";
 
 export default function PlatformLeagueCard({ period, offset, mode, isPro, refreshToken }: InsightCardProps) {
   const { user, isCompanyDriver } = useUser();
@@ -98,6 +99,7 @@ export default function PlatformLeagueCard({ period, offset, mode, isPro, refres
 }
 
 function LeagueRowView({ row, last, isPro }: { row: LeagueRow; last: boolean; isPro: boolean }) {
+  const largeText = useLargeText();
   const top = row.rank === 1 && !row.fewTrips;
   const sub = leagueSubline(row);
   const label =
@@ -112,7 +114,7 @@ function LeagueRowView({ row, last, isPro }: { row: LeagueRow; last: boolean; is
         {row.rank}
       </Text>
       <View style={styles.mid}>
-        <Text style={styles.name} maxFontSizeMultiplier={fontScaleCap.heading}>
+        <Text style={styles.name} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.heading}>
           {row.label}
         </Text>
         {isPro && row.barFraction != null && (

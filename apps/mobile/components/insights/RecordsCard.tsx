@@ -8,6 +8,7 @@ import { colors, fonts, fontScaleCap, numberSizes } from "../../lib/theme";
 import { Skeleton } from "../Skeleton";
 import { buildRecords, type RecordsInput, type RecordCell } from "../../lib/insights/records";
 import { useDistanceUnit } from "../../lib/units/distanceUnit";
+import { useLargeText } from "../../lib/accessibility";
 
 const ICONS: Record<RecordCell["key"], keyof typeof Ionicons.glyphMap> = {
   bestDay: "trophy-outline",
@@ -24,6 +25,7 @@ interface RecordsCardProps {
 }
 
 export function RecordsCard({ mode, records, loading, range }: RecordsCardProps) {
+  const largeText = useLargeText();
   const { unit } = useDistanceUnit();
   if (loading && !records) {
     return (
@@ -55,7 +57,7 @@ export function RecordsCard({ mode, records, loading, range }: RecordsCardProps)
           {cells.map((c) => (
             <View key={c.key} style={styles.cell} accessible accessibilityLabel={c.spoken}>
               <View style={styles.topRow}>
-                <Text style={styles.label} maxFontSizeMultiplier={fontScaleCap.display}>{c.label}</Text>
+                <Text style={styles.label} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.display}>{c.label}</Text>
                 {c.isNew ? (
                   <View style={styles.newPill}>
                     <Text style={styles.newText} maxFontSizeMultiplier={2}>New</Text>

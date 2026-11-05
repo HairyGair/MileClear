@@ -18,6 +18,7 @@ import { getMilestoneRoadOrStart, milesToGoText } from "../../lib/insights/miles
 import { nextBadges } from "../../lib/insights/badges";
 import { goalRowText } from "../../lib/insights/goal";
 import { weekStreak, weekStreakLine } from "../../lib/insights/streak";
+import { useLargeText } from "../../lib/accessibility";
 
 const CAR = 28;
 
@@ -174,6 +175,7 @@ function Road({
   avatarId: string | null | undefined;
   reducedMotion: boolean;
 }) {
+  const largeText = useLargeText();
   const [trackW, setTrackW] = useState(0);
   const pos = useRef(new Animated.Value(reducedMotion ? road.progress : 0)).current;
   const played = useRef(false);
@@ -230,7 +232,7 @@ function Road({
       {road.lastAchieved && (
         <View style={styles.achieved}>
           <Ionicons name="checkmark-circle" size={16} color={colors.green} />
-          <Text style={styles.achievedText} maxFontSizeMultiplier={fontScaleCap.body}>
+          <Text style={styles.achievedText} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.body}>
             {road.lastAchieved.label}: {road.lastAchieved.funFact}
           </Text>
         </View>

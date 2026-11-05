@@ -26,6 +26,7 @@ import { describeError } from "../lib/api/apiError";
 import { EmptyState } from "../components/EmptyState";
 import { projectTripsHref } from "../lib/trips/clientFilter";
 import { colors, fonts } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -46,6 +47,7 @@ function plural(n: number, word: string): string {
 }
 
 export default function ProjectTotalsScreen() {
+  const largeText = useLargeText();
   const taxYears = recentTaxYears(4);
   const [taxYear, setTaxYear] = useState(taxYears[0]);
   const [data, setData] = useState<ProjectTotalsResponse | null>(null);
@@ -155,7 +157,7 @@ export default function ProjectTotalsScreen() {
                 const body = (
                   <>
                     <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Text style={[styles.rowLabel, p.label === null && styles.rowLabelMuted]}>
+                      <Text style={[styles.rowLabel, p.label === null && styles.rowLabelMuted]} numberOfLines={largeText ? undefined : 2}>
                         {p.label ?? "No project"}
                       </Text>
                       <Text style={styles.rowSub}>{plural(p.trips, "trip")}</Text>

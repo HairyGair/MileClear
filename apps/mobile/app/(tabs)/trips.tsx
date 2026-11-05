@@ -69,6 +69,7 @@ import { Swipeable, RectButton } from "react-native-gesture-handler";
 import AppHeader from "../../components/AppHeader";
 import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { openStartTrip } from "../../lib/home/openStartTrip";
+import { useLargeText } from "../../lib/accessibility";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -351,6 +352,7 @@ async function localTripsForClient<T extends { id: string }>(trips: T[], client:
 }
 
 export default function TripsScreen() {
+  const largeText = useLargeText();
   const router = useRouter();
   const dist = useDistanceUnit();
   // "?filter=unclassified" is how the classify reminders (evening digest,
@@ -1442,7 +1444,7 @@ export default function TripsScreen() {
 
             {/* Line 2: time, miles, app; the Business or Personal chip on the right */}
             <View style={styles.line2Row}>
-              <Text style={styles.line2} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text style={styles.line2} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>
                 {line2}
               </Text>
               {!isUnclassified && (
@@ -1474,6 +1476,7 @@ export default function TripsScreen() {
                 />
                 <Text
                   style={[styles.tagText, tag.kind === "upload_failed" && { color: RED }]}
+                  numberOfLines={largeText ? undefined : 1}
                   maxFontSizeMultiplier={fontScaleCap.body}
                 >
                   {tag.text}
@@ -1757,7 +1760,7 @@ export default function TripsScreen() {
               <Text style={styles.routeTitle} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
                 {route}
               </Text>
-              <Text style={styles.line2} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text style={styles.line2} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.body}>
                 {summaryLine}
               </Text>
             </View>
@@ -1908,6 +1911,7 @@ export default function TripsScreen() {
                   >
                     <Text
                       style={[styles.segmentText, selected && styles.segmentTextActive]}
+                      numberOfLines={largeText ? undefined : 1}
                       maxFontSizeMultiplier={2}
                     >
                       {f.label}
@@ -2522,6 +2526,7 @@ export default function TripsScreen() {
                             styles.dateRangeChipText,
                             active && styles.dateRangeChipTextActive,
                           ]}
+                          numberOfLines={largeText ? undefined : 1}
                         >
                           {c.label}
                         </Text>

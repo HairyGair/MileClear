@@ -6,6 +6,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 interface Props {
   showShift: boolean;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: Props) {
+  const largeText = useLargeText();
   const { width, fontScale } = useWindowDimensions();
   const stacked = showShift && (fontScale > 1.3 || width < 380);
 
@@ -27,7 +29,7 @@ export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: 
       accessibilityHint="Opens the trip screen to record a drive now"
     >
       <Ionicons name="navigate" size={20} color={colors.bg} accessible={false} />
-      <Text style={s.tripText} maxFontSizeMultiplier={fontScaleCap.heading}>Start Trip</Text>
+      <Text style={s.tripText} numberOfLines={largeText ? undefined : 1} adjustsFontSizeToFit={!largeText} minimumFontScale={0.8} maxFontSizeMultiplier={fontScaleCap.heading}>Start Trip</Text>
     </Pressable>
   );
 
@@ -48,7 +50,7 @@ export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: 
       ) : (
         <Ionicons name="play" size={18} color={colors.amber} accessible={false} />
       )}
-      <Text style={s.shiftText} maxFontSizeMultiplier={fontScaleCap.heading}>Start Shift</Text>
+      <Text style={s.shiftText} numberOfLines={largeText ? undefined : 1} adjustsFontSizeToFit={!largeText} minimumFontScale={0.8} maxFontSizeMultiplier={fontScaleCap.heading}>Start Shift</Text>
     </Pressable>
   );
 

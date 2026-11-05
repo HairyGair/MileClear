@@ -19,6 +19,7 @@ import { offerEarlierTrips } from "../../lib/vehicles/earlierTrips";
 import { haptic } from "../../lib/haptics";
 import { colors, fonts } from "../../lib/theme";
 import CarBluetoothArt from "./CarBluetoothArt";
+import { useLargeText } from "../../lib/accessibility";
 
 interface WhichCarSheetProps {
   /** The question to ask; null keeps the sheet closed. */
@@ -29,6 +30,7 @@ interface WhichCarSheetProps {
 }
 
 export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
+  const largeText = useLargeText();
   const [failed, setFailed] = useState(false);
   // A ref, not state: two quick taps both see the same render's state.
   const busy = useRef(false);
@@ -147,7 +149,7 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
                       </Text>
                     ) : null}
                     {linkedTo ? (
-                      <Text style={styles.rowLinked}>
+                      <Text style={styles.rowLinked} numberOfLines={largeText ? undefined : 1}>
                         Linked to {linkedTo}
                       </Text>
                     ) : null}

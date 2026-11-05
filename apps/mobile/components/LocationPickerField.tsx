@@ -26,6 +26,7 @@ import {
 } from "../lib/location/recentPlaces";
 import { loadPickerPlaces } from "../lib/location/pickerPlacesStore";
 import { colors, fonts } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -61,6 +62,7 @@ export function LocationPickerField({
   initialSearchOpen,
   bare,
 }: LocationPickerFieldProps) {
+  const largeText = useLargeText();
   const [loading, setLoading] = useState(false);
   const [showSearch, setShowSearch] = useState(!!initialSearchOpen);
   const [searchText, setSearchText] = useState("");
@@ -351,7 +353,7 @@ export function LocationPickerField({
                   accessibilityLabel={`Show all ${pickerPlaces.saved.length} saved places`}
                 >
                   <Ionicons name="chevron-down" size={15} color={AMBER} accessible={false} />
-                  <Text style={styles.showAllText}>
+                  <Text style={styles.showAllText} numberOfLines={largeText ? undefined : 1}>
                     Show all {pickerPlaces.saved.length} saved places
                   </Text>
                 </TouchableOpacity>
@@ -429,7 +431,7 @@ export function LocationPickerField({
               accessibilityLabel={`Search for ${searchText.trim()}`}
             >
               <Ionicons name="search-outline" size={15} color={AMBER} accessible={false} />
-              <Text style={styles.fallbackText}>Search for &quot;{searchText.trim()}&quot;</Text>
+              <Text style={styles.fallbackText} numberOfLines={largeText ? undefined : 1}>Search for &quot;{searchText.trim()}&quot;</Text>
             </TouchableOpacity>
           )}
 

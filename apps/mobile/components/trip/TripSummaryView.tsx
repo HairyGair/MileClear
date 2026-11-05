@@ -23,7 +23,7 @@ import type {
 import { TripMapWidget } from "../map/TripMapWidget";
 import { MiniRoute } from "../home/MiniRoute";
 import { PickerSheet, type PickerOption } from "./PickerSheet";
-import { useReducedMotion } from "../../lib/accessibility";
+import { useReducedMotion, useLargeText } from "../../lib/accessibility";
 import { dayLabel } from "../../lib/trips/dayOrder";
 import { distanceWarning, tripMadeDetail } from "../../lib/trips/tripLabels";
 import type { TripFacts } from "@mileclear/shared";
@@ -251,6 +251,7 @@ function ChoiceSegment({
   selected: boolean;
   onPress: () => void;
 }) {
+  const largeText = useLargeText();
   const business = kind === "business";
   const label = business ? "Business" : "Personal";
   const iconName = business
@@ -273,6 +274,7 @@ function ChoiceSegment({
       <Ionicons name={iconName as keyof typeof Ionicons.glyphMap} size={18} color={fg} accessible={false} />
       <Text
         style={[styles.segmentText, { color: fg, fontFamily: selected ? fonts.bold : fonts.semibold }]}
+        numberOfLines={largeText ? undefined : 1}
         maxFontSizeMultiplier={fontScaleCap.display}
       >
         {label}
@@ -416,15 +418,16 @@ function Row({
   busy?: boolean;
   first?: boolean;
 }) {
+  const largeText = useLargeText();
   const body = (
     <>
       <Ionicons name={icon} size={20} color={colors.text2} accessible={false} />
       <View style={styles.rowText}>
-        <Text style={styles.rowLabel} maxFontSizeMultiplier={fontScaleCap.body}>
+        <Text style={styles.rowLabel} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.body}>
           {label}
         </Text>
         {sub ? (
-          <Text style={styles.rowSub} maxFontSizeMultiplier={fontScaleCap.body}>
+          <Text style={styles.rowSub} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.body}>
             {sub}
           </Text>
         ) : null}
@@ -432,6 +435,7 @@ function Row({
       {value ? (
         <Text
           style={[styles.rowValue, valueAccent && { color: colors.amber }]}
+          numberOfLines={largeText ? undefined : 1}
           maxFontSizeMultiplier={fontScaleCap.body}
         >
           {value}

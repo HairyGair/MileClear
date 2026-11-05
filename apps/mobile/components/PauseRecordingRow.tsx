@@ -12,6 +12,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 import { pauseChoices, pausedRowText, workHoursRowText, type PauseChoice } from "../lib/tracking/pauseRule";
+import { useLargeText } from "../lib/accessibility";
 
 interface Props {
   /** Epoch ms when the pause ends, or null when recording is on. */
@@ -24,11 +25,12 @@ interface Props {
 }
 
 export function PauseRecordingRow({ pausedUntil, workHours = false, now, onPause, onResume }: Props) {
+  const largeText = useLargeText();
   if (pausedUntil !== null) {
     return (
       <View style={s.pausedRow}>
         <Ionicons name="pause-circle" size={20} color={colors.amber} accessible={false} />
-        <Text style={s.pausedText}>
+        <Text style={s.pausedText} numberOfLines={largeText ? undefined : 1} adjustsFontSizeToFit={!largeText} minimumFontScale={0.85}>
           {workHours ? workHoursRowText(pausedUntil, now) : pausedRowText(pausedUntil, now)}
         </Text>
         <TouchableOpacity

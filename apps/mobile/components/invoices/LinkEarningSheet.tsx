@@ -27,6 +27,7 @@ import {
   type PotentialEarningMatch,
 } from "../../lib/api/invoices";
 import { colors, fonts } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 const BG = colors.bg;
 const CARD_BG = colors.surface;
@@ -84,6 +85,7 @@ export function LinkEarningSheet({
   onResolved,
   onClose,
 }: LinkEarningSheetProps) {
+  const largeText = useLargeText();
   // Local copy of the candidate list — we mutate it as the user links
   // rows so each successful link removes that row from view, letting
   // the user roll up multiple earnings into one invoice (Laura's 7
@@ -250,7 +252,7 @@ export function LinkEarningSheet({
                         Logged {formatDate(match.periodStart)} · {daysCopy}
                       </Text>
                       {match.notes && (
-                        <Text style={styles.matchNotes}>
+                        <Text style={styles.matchNotes} numberOfLines={largeText ? undefined : 2}>
                           {match.notes}
                         </Text>
                       )}

@@ -23,6 +23,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AvatarMenuButton from "./AvatarMenuButton";
 import { HeaderBackButton } from "./HeaderBackButton";
+import { useLargeText } from "../lib/accessibility";
 
 const ROUTE_LABELS: Record<string, string> = {
   "/trip-form": "Add trip",
@@ -55,6 +56,7 @@ export default function AppHeader({
   right?: React.ReactNode;
   hideAvatar?: boolean;
 }) {
+  const largeText = useLargeText();
   const router = useRouter();
   // expo-router mounts SafeAreaProvider itself (see ExpoRoot), so insets are
   // available without any extra provider in our tree.
@@ -65,7 +67,7 @@ export default function AppHeader({
       <View style={[styles.left, !title && styles.leftBrand]}>
         {showBack && <HeaderBackButton />}
         {title ? (
-          <Text style={styles.title} accessibilityRole="header">
+          <Text style={styles.title} numberOfLines={largeText ? undefined : 1} accessibilityRole="header">
             {title}
           </Text>
         ) : (

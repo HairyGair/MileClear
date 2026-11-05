@@ -4,7 +4,7 @@
 // control at least 56 pt.
 
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import { Pressable, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NavigationStep } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, nav, radii, spacing } from "../../lib/theme";
@@ -23,6 +23,7 @@ import { rerouteFailureBody } from "../../lib/navigation/errorCopy";
 import type { RecordingChip } from "../../lib/navigation/rules";
 import type { GpsState, RerouteStatus } from "../../lib/navigation/useGuidance";
 import { ManoeuvreGlyph } from "./Glyph";
+import { useLargeText } from "../../lib/accessibility";
 
 export function Banner(props: {
   next: NavigationStep | null;
@@ -34,6 +35,7 @@ export function Banner(props: {
   arriveName: string | null;
   onPress: () => void;
 }) {
+  const largeText = useLargeText();
   const { next, reroute } = props;
   const searching = reroute.kind === "searching";
   const failed = reroute.kind === "failed";
@@ -82,11 +84,11 @@ export function Banner(props: {
         <View style={s.tile}>{tile}</View>
         <View style={s.bannerText}>
           {distance ? (
-            <Text style={s.distance} maxFontSizeMultiplier={fontScaleCap.display}>
+            <Text style={s.distance} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.display}>
               {distance}
             </Text>
           ) : null}
-          <Text style={s.action} maxFontSizeMultiplier={fontScaleCap.display}>
+          <Text style={s.action} numberOfLines={largeText ? undefined : (failed ? 2 : 1)} maxFontSizeMultiplier={fontScaleCap.display}>
             {action}
           </Text>
           {street ? (
@@ -152,11 +154,16 @@ export function StatusStrips({ gps, chip, onEnd }: { gps: GpsState; chip: Record
 }
 
 export function SpeedSign({ mph }: { mph: number | null }) {
+  // The sign grows with the system text size (up to double) so the number
+  // still fits inside the ring at large text sizes.
+  const { fontScale } = useWindowDimensions();
+  const size = Math.round(nav.speedSign * Math.min(Math.max(fontScale, 1), 2));
+  const box = { width: size, height: size };
   // Keep the space when there is no limit, so the controls row (space-between)
   // does not move Mute across to the left over the map's Legal label.
-  if (mph == null) return <View style={s.speedPlaceholder} accessible={false} />;
+  if (mph == null) return <View style={[s.speedPlaceholder, box]} accessible={false} />;
   return (
-    <View style={s.speed} accessibilityLabel={`Speed limit ${mph} miles per hour`}>
+    <View style={[s.speed, box, { borderRadius: size / 2 }]} accessibilityLabel={`Speed limit ${mph} miles per hour`}>
       <Text style={s.speedText} maxFontSizeMultiplier={fontScaleCap.body}>
         {mph}
       </Text>

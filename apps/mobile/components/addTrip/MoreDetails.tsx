@@ -5,6 +5,7 @@
 import { LayoutAnimation, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 interface Props {
   open: boolean;
@@ -42,6 +43,7 @@ export function moreDetailsSummary(args: {
 }
 
 export function MoreDetails(p: Props) {
+  const largeText = useLargeText();
   const summary = moreDetailsSummary(p);
   const odoStart = parseFloat(p.odometerStart);
   const odoEnd = parseFloat(p.odometerEnd);
@@ -65,7 +67,7 @@ export function MoreDetails(p: Props) {
       >
         <View style={{ flex: 1 }}>
           <Text style={styles.title} maxFontSizeMultiplier={fontScaleCap.body}>More details</Text>
-          <Text style={styles.summary} maxFontSizeMultiplier={fontScaleCap.body}>{summary}</Text>
+          <Text style={styles.summary} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>{summary}</Text>
         </View>
         <Ionicons name={p.open ? "chevron-up" : "chevron-forward"} size={20} color={colors.text3} accessible={false} />
       </TouchableOpacity>

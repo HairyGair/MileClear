@@ -8,7 +8,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
 import { Skeleton } from "../Skeleton";
-import { useReducedMotion } from "../../lib/accessibility";
+import { useReducedMotion, useLargeText } from "../../lib/accessibility";
 import { getDatabase } from "../../lib/db/index";
 import { claimGainNote, type HeroModel } from "../../lib/home/hero";
 import { colors, fonts, fontScaleCap, heroCard, motion, numberSizes } from "../../lib/theme";
@@ -115,6 +115,7 @@ interface Props {
 }
 
 export function HeroCard({ model, onPress, recentTrip }: Props) {
+  const largeText = useLargeText();
   const claim = model.kind === "figure" ? model.claimPence : null;
   const { note, shown } = useClaimGain(claim, recentTrip);
   const counted = useCountedPence(shown, true);
@@ -172,7 +173,7 @@ export function HeroCard({ model, onPress, recentTrip }: Props) {
               {figure}
             </Text>
             {model.unit ? (
-              <Text style={s.unit} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text style={s.unit} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>
                 {model.unit}
               </Text>
             ) : null}
@@ -180,7 +181,7 @@ export function HeroCard({ model, onPress, recentTrip }: Props) {
         )}
       </View>
       {model.line ? (
-        <Text style={s.line} maxFontSizeMultiplier={fontScaleCap.body}>
+        <Text style={s.line} numberOfLines={largeText ? undefined : 3} maxFontSizeMultiplier={fontScaleCap.body}>
           {model.line}
         </Text>
       ) : null}

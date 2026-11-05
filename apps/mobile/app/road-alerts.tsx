@@ -27,6 +27,7 @@ import { TripMapWidget } from "../components/map/TripMapWidget";
 import { formatAlertDay, formatAlertTime, turnOnRoadAlerts } from "../lib/roadAlerts";
 import { weekAheadStartLine, weekAheadTitle, withoutWeekAhead } from "../lib/roadAlertsWeek";
 import { colors, fonts, radii } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 type Data = RoadAlertsResponse["data"];
 
@@ -96,6 +97,7 @@ function hideKeys(item: RoadAlertItem): string[] {
 }
 
 export default function RoadAlertsScreen() {
+  const largeText = useLargeText();
   const router = useRouter();
   const { section } = useLocalSearchParams<{ section?: string }>();
   const scrollRef = useRef<ScrollView>(null);
@@ -341,7 +343,7 @@ export default function RoadAlertsScreen() {
       {lastHidden ? (
         // Floats over the bottom of the list so it is seen wherever the card was.
         <View style={[styles.undoBar, styles.undoFloat]} accessibilityLiveRegion="polite">
-          <Text style={styles.undoText}>
+          <Text style={styles.undoText} numberOfLines={largeText ? undefined : 2}>
             Hidden. We won&apos;t show or send this closure again.
           </Text>
           <TouchableOpacity onPress={undo} accessibilityRole="button" accessibilityLabel="Undo, show it again">

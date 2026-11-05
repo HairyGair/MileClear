@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { View, Text, TouchableOpacity, Pressable, ScrollView, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "./AppModal";
 import { colors, fonts, fontScaleCap, fontSizes, radii, spacing } from "../lib/theme";
@@ -28,6 +28,9 @@ interface Props {
  * and how to come back. One component for Sign up, Connect, Pay and File.
  */
 export function HmrcHandoffSheet({ visible, copy, onClose, onPrimary, onPrimaryTap, onSecondary }: Props) {
+  // The step number circles grow with the system text size so the number fits.
+  const { fontScale } = useWindowDimensions();
+  const numSize = Math.round(26 * Math.min(Math.max(fontScale, 1), 2));
   // A second tap while the sheet is closing must not open the page twice.
   const busy = useRef(false);
   const runAfterClose = (fn: () => void) => {
@@ -92,7 +95,7 @@ export function HmrcHandoffSheet({ visible, copy, onClose, onPrimary, onPrimaryT
                     accessible
                     accessibilityLabel={`Step ${i + 1}: ${s.title}${s.body ? `. ${s.body}` : ""}`}
                   >
-                    <View style={styles.num}>
+                    <View style={[styles.num, { width: numSize, height: numSize, borderRadius: numSize / 2 }]}>
                       <Text style={styles.numText} maxFontSizeMultiplier={fontScaleCap.body}>{i + 1}</Text>
                     </View>
                     <View style={{ flex: 1 }}>

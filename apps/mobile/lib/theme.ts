@@ -62,6 +62,15 @@ export const mapOlder = "#64748b";
 
 export const tabBar = { contentHeight: 56, icon: 24, label: 12 } as const;
 
+// Tab bar height above the bottom safe area. Room for the icon, gap and a
+// label scaled up to the 2.0 cap (line height about 1.3 x font size), plus
+// padding; never below the design height, so default text size is unchanged.
+// Anything placed above the tab bar must use this, not contentHeight.
+export function tabBarContentHeight(fontScale: number): number {
+  const labelLine = Math.ceil(tabBar.label * Math.min(Math.max(fontScale, 1), 2) * 1.3);
+  return Math.max(tabBar.contentHeight, 6 + tabBar.icon + 2 + labelLine + 6);
+}
+
 // ── Insights redesign (docs/insights-oct2026/SPEC-VISUAL.md section 3) ──
 // Charts use solid hexes pre-blended on surface so bars never stack
 // translucency and screenshots match the device.

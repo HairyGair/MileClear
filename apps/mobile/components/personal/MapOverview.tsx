@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { TripDetail } from "../../lib/api/trips";
 import { colors, fonts, mapPalette, mapOlder } from "../../lib/theme";
 import { useDistanceUnit } from "../../lib/units/distanceUnit";
-import { useReducedMotion } from "../../lib/accessibility";
+import { useReducedMotion, useLargeText } from "../../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -115,6 +115,7 @@ function filterTrips(trips: TripDetail[], filter: TimeFilter): TripDetail[] {
 }
 
 export function MapOverview({ trips, title }: MapOverviewProps) {
+  const largeText = useLargeText();
   const dist = useDistanceUnit();
   const [fullscreen, setFullscreen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<number | null>(null);
@@ -285,7 +286,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
       {legendTrips.map((trip, i) => (
         <View key={trip.id} style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: tripColour(i) }]} />
-          <Text style={styles.legendText} maxFontSizeMultiplier={2}>
+          <Text style={styles.legendText} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={2}>
             {formatClock(trip.startedAt)} {"\u00B7"} {dist.fmt(trip.distanceMiles, { fixed: true })}
           </Text>
         </View>
@@ -293,7 +294,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
       {olderCount > 0 && (
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: mapOlder }]} />
-          <Text style={styles.legendText} maxFontSizeMultiplier={2}>
+          <Text style={styles.legendText} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={2}>
             +{olderCount} older
           </Text>
         </View>

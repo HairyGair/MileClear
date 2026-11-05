@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../lib/db/index";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const GREEN = colors.green;
@@ -138,6 +139,7 @@ function RuleCard({
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const largeText = useLargeText();
   const icon = ruleTypeIcon(rule.rule_type);
   const iconColor = ruleTypeColor(rule.rule_type);
   const classColor = classificationColor(rule.classification);
@@ -155,10 +157,10 @@ function RuleCard({
       </View>
 
       <View style={s.cardBody}>
-        <Text style={[s.cardName, !isEnabled && s.cardNameDisabled]}>
+        <Text style={[s.cardName, !isEnabled && s.cardNameDisabled]} numberOfLines={largeText ? undefined : 1}>
           {rule.name}
         </Text>
-        <Text style={s.cardDesc}>
+        <Text style={s.cardDesc} numberOfLines={largeText ? undefined : 2}>
           {description}
         </Text>
         {rule.platform_tag && (

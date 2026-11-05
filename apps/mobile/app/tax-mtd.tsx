@@ -44,6 +44,7 @@ import {
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { colors, fonts } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -592,6 +593,7 @@ function ConnectionLine({
   onManage: () => void;
   onConnect: () => void;
 }) {
+  const largeText = useLargeText();
   const expired = isConnectionExpired(status?.expiresAt);
   const label = hubConnectionLabel(env, expired, getTaxYear(new Date()));
   const dot = expired ? AMBER : isMtdTest(env) ? AMBER : GREEN;
@@ -599,7 +601,7 @@ function ConnectionLine({
     <View style={styles.connLine}>
       <View style={styles.headerLeft}>
         <View style={[styles.statusDot, { backgroundColor: dot }]} />
-        <Text style={styles.connText} accessibilityRole="text">{label}</Text>
+        <Text style={styles.connText} numberOfLines={largeText ? undefined : 1} accessibilityRole="text">{label}</Text>
       </View>
       <TouchableOpacity
         onPress={expired ? onConnect : onManage}

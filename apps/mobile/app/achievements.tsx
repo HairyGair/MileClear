@@ -17,6 +17,7 @@ import { colors, fonts } from "../lib/theme";
 import { useDistanceUnit } from "../lib/units/distanceUnit";
 import { Medal } from "../components/insights/BadgesRow";
 import { badgeSpokenLabel } from "../lib/insights/badges";
+import { useLargeText } from "../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const BG = colors.bg;
@@ -32,6 +33,7 @@ const TEXT_3 = colors.text3;
 // Personal Records section is also free now (was previously gated).
 
 export default function AchievementsScreen() {
+  const largeText = useLargeText();
   // Personal records follow Distances; badge names and goals stay in miles.
   const dist = useDistanceUnit();
   const [earned, setEarned] = useState<AchievementWithMeta[]>([]);
@@ -114,11 +116,13 @@ export default function AchievementsScreen() {
               </View>
               <Text
                 style={[s.badgeLabel, !isEarned && s.textLocked]}
+                numberOfLines={largeText ? undefined : 1}
               >
                 {meta.label}
               </Text>
               <Text
                 style={[s.badgeDesc, !isEarned && s.textLockedSoft]}
+                numberOfLines={largeText ? undefined : 2}
               >
                 {meta.description}
               </Text>

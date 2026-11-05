@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   StyleSheet,
+  useWindowDimensions,
 } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -158,9 +159,13 @@ export default function TaxMtdBusinessScreen() {
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
+  // The label column widens with the system text size (up to double), so a
+  // word like "Accounting" is not broken across lines at large sizes.
+  const { fontScale } = useWindowDimensions();
+  const labelWidth = Math.round(96 * Math.min(Math.max(fontScale, 1), 2));
   return (
     <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={[styles.rowLabel, { width: labelWidth }]}>{label}</Text>
       <Text style={styles.rowValue}>{value}</Text>
     </View>
   );

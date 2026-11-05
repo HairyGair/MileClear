@@ -24,7 +24,7 @@ import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
 import { isWorkDriver, showsTaxTab } from "../../lib/tax/persona";
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
-import { colors, fonts, tabBar } from "../../lib/theme";
+import { colors, fonts, tabBar, tabBarContentHeight } from "../../lib/theme";
 import { UpdateReadyBanner } from "../../components/UpdateReadyBanner";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -88,11 +88,10 @@ const tabLabel =
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
-  // Room for the icon, gap and a label scaled up to the 2.0 cap (line height
-  // about 1.3 x font size), plus padding. Never below the design height, so
-  // default text size is unchanged.
-  const labelLine = Math.ceil(tabBar.label * Math.min(Math.max(fontScale, 1), 2) * 1.3);
-  const tabContentHeight = Math.max(tabBar.contentHeight, 6 + tabBar.icon + 2 + labelLine + 6);
+  const tabContentHeight = tabBarContentHeight(fontScale);
+  // The count badge's text follows the system text size (React Navigation
+  // sets no cap), so its circle grows with it instead of clipping the number.
+  const badgeSize = fontScale > 1 ? Math.ceil(18 * fontScale) : 18;
   const { isWork } = useMode();
   const { user } = useUser();
   const taxTab = showsTaxTab(isWork, isWorkDriver(user));
@@ -171,10 +170,10 @@ export default function TabLayout() {
           color: colors.bg,
           fontSize: 11,
           fontFamily: fonts.bold,
-          minWidth: 18,
-          height: 18,
+          minWidth: badgeSize,
+          height: badgeSize,
           lineHeight: 15,
-          borderRadius: 9,
+          borderRadius: badgeSize / 2,
           paddingHorizontal: 5,
           borderWidth: 2,
           borderColor: colors.bg,

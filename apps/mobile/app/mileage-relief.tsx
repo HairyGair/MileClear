@@ -27,6 +27,7 @@ import { fetchMileageRelief } from "../lib/api/mileageRelief";
 import { useMarRelief } from "../lib/mileageRelief/useMarRelief";
 import { usePrompt } from "../components/prompt";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 /**
  * Mileage Allowance Relief for employees (free). Every rule and number is
@@ -521,6 +522,7 @@ function WorkLine({ left, right, strong, accent }: { left: string; right: string
 }
 
 function Pill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const largeText = useLargeText();
   return (
     <TouchableOpacity
       style={[s.pill, active && s.pillActive]}
@@ -529,7 +531,7 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
     >
-      <Text style={[s.pillText, active && s.pillTextActive]}>{label}</Text>
+      <Text style={[s.pillText, active && s.pillTextActive]} numberOfLines={largeText ? undefined : 2}>{label}</Text>
     </TouchableOpacity>
   );
 }

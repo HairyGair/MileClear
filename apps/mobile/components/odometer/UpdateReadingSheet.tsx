@@ -41,6 +41,7 @@ import {
   saveOutcomeMessage,
   type MotHint,
 } from "../../lib/odometer/logic";
+import { useLargeText } from "../../lib/accessibility";
 
 export interface UpdateReadingVehicle {
   id: string;
@@ -64,6 +65,7 @@ const MOT_TIMEOUT_MS = 2000;
 
 /** Update odometer sheet (SPEC-UX 1.3). Used by the vehicle screen, the log and the Home prompt. */
 export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeReadings }: Props) {
+  const largeText = useLargeText();
   const [text, setText] = useState("");
   const [readAt, setReadAt] = useState<Date>(() => new Date());
   const [touchedTime, setTouchedTime] = useState(false);
@@ -287,7 +289,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
                   />
                   <StatusChip recorded={!odo.current.isEstimated} source={odo.current.basis.source} />
                 </View>
-                <Text style={styles.panelAsOf} maxFontSizeMultiplier={fontScaleCap.body}>
+                <Text style={styles.panelAsOf} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.body}>
                   {basisText(odo.current)}
                 </Text>
               </View>

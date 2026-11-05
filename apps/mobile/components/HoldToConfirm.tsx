@@ -32,7 +32,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii, spacing } from "../lib/theme";
 import { haptic } from "../lib/haptics";
-import { useScreenReader } from "../lib/accessibility";
+import { useScreenReader, useLargeText } from "../lib/accessibility";
 import { EARLY_RELEASE_HINT_MS, fillCopyFrame, holdHintText, isEarlyRelease } from "../lib/ui/holdToConfirmRule";
 
 interface HoldToConfirmProps {
@@ -66,6 +66,7 @@ export function HoldToConfirm({
   loading = false,
   style,
 }: HoldToConfirmProps) {
+  const largeText = useLargeText();
   const fill = useRef(new Animated.Value(0)).current;
   const [holding, setHolding] = useState(false);
   const [releasedEarly, setReleasedEarly] = useState(false);
@@ -154,12 +155,15 @@ export function HoldToConfirm({
       ) : (
         <Ionicons name={icon} size={20} color={colour} />
       )}
-      {/* Two lines at most, shrinking a little before it wraps, so a large
-          Dynamic Type size stays readable instead of cut off; the button
-          grows to fit (minHeight). Both copies lay out at the same width, so
-          they wrap and shrink identically. */}
+      {/* Two lines at most, shrinking a little to fit, up to 130% text; above
+          that it wraps to as many lines as it needs and the button grows to
+          fit (minHeight). Both copies lay out at the same width, so they wrap
+          and shrink identically. */}
       <Text
         style={[styles.label, { color: colour }]}
+        numberOfLines={largeText ? undefined : 2}
+        adjustsFontSizeToFit={!largeText}
+        minimumFontScale={0.8}
       >
         {text}
       </Text>

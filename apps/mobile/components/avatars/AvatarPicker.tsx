@@ -10,6 +10,7 @@ import {
 import { AppModal } from "../AppModal";
 import { AVATARS, AvatarIcon, UserAvatar } from "./AvatarRegistry";
 import { colors, fonts } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 const AMBER = colors.amber;
 const TEXT_1 = colors.text1;
@@ -23,6 +24,7 @@ interface AvatarPickerProps {
 }
 
 export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
+  const largeText = useLargeText();
   const [visible, setVisible] = useState(false);
 
   const handleSelect = useCallback(
@@ -75,7 +77,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
                 accessibilityState={{ selected: currentAvatarId === null }}
               >
                 <UserAvatar name="A" size={52} />
-                <Text style={styles.cellLabel}>
+                <Text style={styles.cellLabel} numberOfLines={largeText ? undefined : 1}>
                   Initials
                 </Text>
               </TouchableOpacity>
@@ -94,7 +96,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
                   accessibilityState={{ selected: currentAvatarId === avatar.id }}
                 >
                   <AvatarIcon avatarId={avatar.id} size={52} />
-                  <Text style={styles.cellLabel}>
+                  <Text style={styles.cellLabel} numberOfLines={largeText ? undefined : 1}>
                     {avatar.label}
                   </Text>
                 </TouchableOpacity>

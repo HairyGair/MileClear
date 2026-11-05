@@ -20,6 +20,7 @@ import {
 } from "../../lib/api/businessInsights";
 import { formatPence, GIG_PLATFORMS } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -39,6 +40,7 @@ function labelFor(platform: string): string {
 }
 
 export function PlatformPnLCard({ days = 30 }: { days?: number }) {
+  const largeText = useLargeText();
   const router = useRouter();
   const [rows, setRows] = useState<PlatformPnLRow[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,7 +136,7 @@ export function PlatformPnLCard({ days = 30 }: { days?: number }) {
         return (
           <View key={r.platform} style={styles.dataRow}>
             <View style={styles.platformCell}>
-              <Text style={styles.platformText}>
+              <Text style={styles.platformText} numberOfLines={largeText ? undefined : 1}>
                 {labelFor(r.platform)}
               </Text>
               <Text style={styles.subText}>

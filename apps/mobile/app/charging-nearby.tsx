@@ -12,6 +12,7 @@ import { openDirections } from "../lib/location/directions";
 import { fetchNearbyChargers } from "../lib/api/charging";
 import type { ChargePoint } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
+import { useLargeText } from "../lib/accessibility";
 
 const ACCESS_LABEL: Record<string, string> = {
   public: "Public",
@@ -25,6 +26,7 @@ const ACCESS_LABEL: Record<string, string> = {
 const RAPID_KW = 50;
 
 export default function ChargingNearbyScreen() {
+  const largeText = useLargeText();
   // ?rapid=1 from the EV running-cost card and the Monday EV push.
   const params = useLocalSearchParams<{ rapid?: string }>();
   const [rapidOnly, setRapidOnly] = useState(params.rapid === "1");
@@ -114,7 +116,7 @@ export default function ChargingNearbyScreen() {
                   <View style={styles.cardHeader}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name} numberOfLines={1}>{c.name}</Text>
-                      <Text style={styles.meta}>
+                      <Text style={styles.meta} numberOfLines={largeText ? undefined : 1}>
                         {c.operator ? `${c.operator} · ` : ""}{c.distanceMiles} mi
                         {ACCESS_LABEL[c.access] ? ` · ${ACCESS_LABEL[c.access]}` : ""}
                       </Text>
@@ -139,7 +141,7 @@ export default function ChargingNearbyScreen() {
                   )}
 
                   <View style={styles.cardFooter}>
-                    {c.costNote ? <Text style={styles.costNote}>{c.costNote}</Text> : <View style={{ flex: 1 }} />}
+                    {c.costNote ? <Text style={styles.costNote} numberOfLines={largeText ? undefined : 1}>{c.costNote}</Text> : <View style={{ flex: 1 }} />}
                     <TouchableOpacity
                       style={styles.dirBtn}
                       onPress={() => openDirections(c.latitude, c.longitude, c.name)}

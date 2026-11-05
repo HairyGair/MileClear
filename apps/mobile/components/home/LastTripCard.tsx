@@ -27,6 +27,7 @@ import { trackHomeTap } from "../../lib/home/trackHomeTap";
 import { trackTutorial } from "../../lib/events/tutorial";
 import { haptic } from "../../lib/haptics";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 type Full = Extract<LastTripView, { look: "full" | "compact" }>;
 
@@ -90,6 +91,7 @@ function Footer({ footer, onPress }: { footer: NonNullable<LastTripFooter>; onPr
 }
 
 export function LastTripCard({ view, mode, state, onChanged, firstSortHint, firstWeek }: Props) {
+  const largeText = useLargeText();
   const router = useRouter();
   const { fontScale } = useWindowDimensions();
   // The driver's tap, shown at once; cleared when the stored trip catches up.
@@ -263,7 +265,7 @@ export function LastTripCard({ view, mode, state, onChanged, firstSortHint, firs
           {map}
           <View style={{ flex: 1 }}>
             {/* 3 lines: at the largest text sizes 2 cut the miles off ("12.…"). */}
-            <Text style={s.compactTitle} maxFontSizeMultiplier={fontScaleCap.body}>
+            <Text style={s.compactTitle} numberOfLines={largeText ? undefined : 3} maxFontSizeMultiplier={fontScaleCap.body}>
               {v.eyebrow}
             </Text>
           </View>
@@ -304,7 +306,7 @@ export function LastTripCard({ view, mode, state, onChanged, firstSortHint, firs
           {!mapAbove ? map : null}
           <View style={s.fullText}>
             <View style={s.eyebrowRow}>
-              <Text style={s.eyebrow} maxFontSizeMultiplier={fontScaleCap.display}>
+              <Text style={s.eyebrow} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.display}>
                 {v.eyebrow}
               </Text>
               {v.shiftChip ? (

@@ -15,6 +15,7 @@ import { BUSINESS_PURPOSES, GIG_PLATFORMS, TRIP_CATEGORY_META } from "@mileclear
 import type { BusinessPurpose, PlatformTag, TripCategory, TripClassification } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 import { PickerSheet, type PickerOption } from "../trip/PickerSheet";
+import { useLargeText } from "../../lib/accessibility";
 
 const NONE = "__none__";
 
@@ -144,6 +145,7 @@ export function TripTypeBlock(p: Props) {
 }
 
 function Row({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
+  const largeText = useLargeText();
   return (
     <TouchableOpacity
       style={styles.row}
@@ -153,7 +155,7 @@ function Row({ label, value, onPress }: { label: string; value: string; onPress:
       accessibilityLabel={`${label}: ${value}. Double tap to change`}
     >
       <Text style={styles.rowLabel} maxFontSizeMultiplier={fontScaleCap.body}>{label}</Text>
-      <Text style={styles.rowValue} maxFontSizeMultiplier={fontScaleCap.body}>{value}</Text>
+      <Text style={styles.rowValue} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>{value}</Text>
       <Ionicons name="chevron-forward" size={18} color={colors.text3} accessible={false} />
     </TouchableOpacity>
   );

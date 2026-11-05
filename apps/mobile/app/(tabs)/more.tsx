@@ -42,6 +42,7 @@ import {
   type Line,
 } from "../../lib/more/sentences";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 interface RowView {
   icon: string;
@@ -53,6 +54,7 @@ interface RowView {
 }
 
 export default function MoreScreen() {
+  const largeText = useLargeText();
   const router = useRouter();
   const { user, company, isCompanyDriver, seesCompanyDriverApp: companyApp, isLoading } = useUser();
   const { isWork } = useMode();
@@ -217,7 +219,7 @@ export default function MoreScreen() {
               {name}
             </Text>
             {plan ? (
-              <Text style={styles.plan} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text style={styles.plan} numberOfLines={largeText ? undefined : 1} maxFontSizeMultiplier={fontScaleCap.body}>
                 {plan}
               </Text>
             ) : null}

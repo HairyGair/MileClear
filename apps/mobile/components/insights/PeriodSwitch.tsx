@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontScaleCap } from "../../lib/theme";
 import { haptic } from "../../lib/haptics";
 import { taxYearName, taxYearStartYear, type InsightsPeriod, type PeriodRange } from "../../lib/insights/period";
+import { useLargeText } from "../../lib/accessibility";
 
 const OPTIONS: Array<{ key: InsightsPeriod; label: string }> = [
   { key: "week", label: "Week" },
@@ -22,6 +23,7 @@ interface PeriodSwitchProps {
 }
 
 export function PeriodSwitch({ period, onPeriodChange, offset, onOffsetChange, range }: PeriodSwitchProps) {
+  const largeText = useLargeText();
   const isTaxYear = period === "tax_year";
   const now = new Date();
   const thisYear = taxYearStartYear(now);
@@ -53,6 +55,7 @@ export function PeriodSwitch({ period, onPeriodChange, offset, onOffsetChange, r
             >
               <Text
                 style={[styles.tabLabel, active && styles.tabLabelActive]}
+                numberOfLines={largeText ? undefined : 1}
                 maxFontSizeMultiplier={2}
               >
                 {o.label}
@@ -64,7 +67,7 @@ export function PeriodSwitch({ period, onPeriodChange, offset, onOffsetChange, r
 
       {isTaxYear ? (
         <View style={styles.stepper}>
-          <Text style={[styles.stepLabel, styles.stepLabelLeft]} maxFontSizeMultiplier={fontScaleCap.heading}>
+          <Text style={[styles.stepLabel, styles.stepLabelLeft]} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.heading}>
             {range.label}
           </Text>
           <View style={styles.chips}>
@@ -105,6 +108,7 @@ export function PeriodSwitch({ period, onPeriodChange, offset, onOffsetChange, r
           </TouchableOpacity>
           <Text
             style={styles.stepLabel}
+            numberOfLines={largeText ? undefined : 1}
             maxFontSizeMultiplier={fontScaleCap.heading}
             accessibilityRole="header"
           >

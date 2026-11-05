@@ -6,7 +6,7 @@
 // the phone holds).
 
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "../AppModal";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
@@ -42,6 +42,10 @@ interface Props {
 }
 
 export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips }: Props) {
+  // Day circles grow with the system text size (up to 44, what seven fit
+  // across a small phone) so two-digit dates stay inside them.
+  const { fontScale } = useWindowDimensions();
+  const circle = Math.min(44, Math.round(38 * Math.max(fontScale, 1)));
   const start = value ?? now;
   const [year, setYear] = useState(start.getFullYear());
   const [month, setMonth] = useState(start.getMonth());
@@ -137,7 +141,7 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
 
           <View style={styles.weekRow}>
             {WEEKDAYS.map((w) => (
-              <Text key={w} style={styles.weekday} maxFontSizeMultiplier={fontScaleCap.body}>
+              <Text key={w} style={styles.weekday} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} maxFontSizeMultiplier={fontScaleCap.body}>
                 {w}
               </Text>
             ))}
@@ -160,7 +164,7 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
                     accessibilityLabel={`${shortDay(d)}${isToday ? ", today" : ""}${hasTrips ? ", has trips" : ""}`}
                     accessibilityState={{ selected: isPicked, disabled: future }}
                   >
-                    <View style={[styles.dayCircle, isToday && styles.todayRing, isPicked && styles.pickedCircle]}>
+                    <View style={[styles.dayCircle, { width: circle, height: circle, borderRadius: circle / 2 }, isToday && styles.todayRing, isPicked && styles.pickedCircle]}>
                       <Text
                         style={[styles.dayText, future && styles.futureText, isPicked && styles.pickedText]}
                         maxFontSizeMultiplier={fontScaleCap.body}

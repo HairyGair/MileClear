@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWin
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "../AppModal";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
+import { useLargeText } from "../../lib/accessibility";
 
 export interface PickerOption {
   key: string;
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function PickerSheet({ visible, title, options, selectedKey, onPick, onClose, onDismiss }: Props) {
+  const largeText = useLargeText();
   const { height } = useWindowDimensions();
   return (
     <AppModal
@@ -83,7 +85,7 @@ export function PickerSheet({ visible, title, options, selectedKey, onPick, onCl
                         {o.label}
                       </Text>
                       {o.sub ? (
-                        <Text style={s.sub} maxFontSizeMultiplier={fontScaleCap.body}>
+                        <Text style={s.sub} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.body}>
                           {o.sub}
                         </Text>
                       ) : null}

@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { colors, fonts } from "../../lib/theme";
 import { practiceLogoUri, type PracticeForDriver } from "../../lib/api/practice";
 
 export function PracticeMark({
@@ -36,7 +36,9 @@ export function PracticeMark({
     <View style={[s.tile, box]} accessible={false} importantForAccessibility="no-hide-descendants">
       <Text
         style={[s.initials, { fontSize: Math.round(size * (practice.initials.length > 2 ? 0.3 : 0.36)) }]}
-        maxFontSizeMultiplier={fontScaleCap.body}
+        // A logo stand-in drawn to fit its tile (hidden from screen readers;
+        // the practice name is shown and read beside it), so it does not scale.
+        maxFontSizeMultiplier={1}
       >
         {practice.initials}
       </Text>

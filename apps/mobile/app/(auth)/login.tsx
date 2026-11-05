@@ -472,12 +472,14 @@ const s = StyleSheet.create({
   inputFocused: {
     borderColor: colors.amber,
   },
+  // Full height of the field, so the eye stays centred when large text makes
+  // the field taller than 52.
   eyeButton: {
     position: "absolute",
     right: 4,
-    top: 4,
+    top: 0,
+    bottom: 0,
     width: 44,
-    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },

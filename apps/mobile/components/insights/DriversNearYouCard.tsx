@@ -14,6 +14,7 @@ import { cachedLocalBenchmark } from "../../lib/insights/api";
 import { useAsyncData } from "../../lib/insights/useAsyncData";
 import { chart, colors, fonts, fontScaleCap, spacing } from "../../lib/theme";
 import { InsightCard, CardSkeleton, CardError, type InsightCardProps } from "./work/InsightCardUi";
+import { useLargeText } from "../../lib/accessibility";
 
 function withCommas(n: number): string {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -70,10 +71,11 @@ export default function DriversNearYouCard({ mode, refreshToken }: InsightCardPr
 }
 
 function Bar({ label, value, pct, color }: { label: string; value: string; pct: number; color: string }) {
+  const largeText = useLargeText();
   return (
     <View style={styles.barBlock}>
       <View style={styles.barHead}>
-        <Text style={styles.barLabel} maxFontSizeMultiplier={fontScaleCap.heading}>
+        <Text style={styles.barLabel} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.heading}>
           {label}
         </Text>
         <Text style={styles.barValue} maxFontSizeMultiplier={fontScaleCap.display}>

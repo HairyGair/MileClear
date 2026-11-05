@@ -116,7 +116,7 @@ import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, mark
 import { getLiveActivityContext } from "../lib/liveActivity/context";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import { colors, fonts, fontScaleCap } from "../lib/theme";
-import { useReducedMotion } from "../lib/accessibility";
+import { useReducedMotion, useLargeText } from "../lib/accessibility";
 import { haptic } from "../lib/haptics";
 import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
 import { needsTimeConfirm, clockTime } from "../lib/trips/manualTimeRule";
@@ -717,6 +717,7 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
 ];
 
 export default function TripFormScreen() {
+  const largeText = useLargeText();
   const router = useRouter();
   // Miles or kilometres on screen. distanceMiles and everything saved stay
   // in miles; the typed box is in the driver's unit and converted as typed.
@@ -4545,7 +4546,7 @@ export default function TripFormScreen() {
                 <>
                   <View style={styles.dashDivider} />
                   <View style={[styles.dashStat, { flex: 1.5 }]}>
-                    <Text style={[styles.dashStatValue, { fontSize: 14 }]}>
+                    <Text style={[styles.dashStatValue, { fontSize: 14 }]} numberOfLines={largeText ? undefined : 1}>
                       {currentArea}
                     </Text>
                     <Text style={styles.dashStatLabel}>AREA</Text>

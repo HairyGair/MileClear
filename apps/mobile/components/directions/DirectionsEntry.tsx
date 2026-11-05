@@ -18,6 +18,7 @@ import { shouldOfferResume, type SavedSession } from "../../lib/navigation/rules
 import { trackDirections } from "../../lib/navigation/telemetry";
 import { DirectionsIcon } from "./Glyph";
 import { TestBadge } from "./TestBadge";
+import { useLargeText } from "../../lib/accessibility";
 
 export function navigateHref(p: { lat: number; lng: number; label?: string | null; name?: string | null; resume?: boolean }): string {
   const q = [`lat=${p.lat}`, `lng=${p.lng}`];
@@ -29,6 +30,7 @@ export function navigateHref(p: { lat: number; lng: number; label?: string | nul
 
 /** Home: the resume row (when there is one) and "Where to?". */
 export function DirectionsHomeRows({ placement }: { placement: "resume" | "where" }) {
+  const largeText = useLargeText();
   const router = useRouter();
   const available = useDirectionsAvailable();
   const [session, setSession] = useState<SavedSession | null>(null);
@@ -63,7 +65,7 @@ export function DirectionsHomeRows({ placement }: { placement: "resume" | "where
       <View style={s.resume}>
         <View style={s.resumeTop}>
           <DirectionsIcon size={22} color={colors.amber} />
-          <Text style={s.resumeText} maxFontSizeMultiplier={fontScaleCap.heading}>
+          <Text style={s.resumeText} numberOfLines={largeText ? undefined : 2} maxFontSizeMultiplier={fontScaleCap.heading}>
             Carry on to {name}?
           </Text>
         </View>
