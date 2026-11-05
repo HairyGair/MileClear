@@ -10,8 +10,6 @@
 // the phone's copy, sending the end, the Start Shift question) is in
 // staleServerShift.ts.
 
-import { STALE_SHIFT_MIN_OPEN_MS } from "../tracking/staleShiftRule";
-
 /** What this phone knows about one shift. */
 export interface LocalShiftView {
   /** The phone's own row for the shift, if it has one. */
@@ -39,18 +37,19 @@ export function shouldResendEnd(serverShift: { status: string }, local: LocalShi
 }
 
 /**
- * The end time to send with a late end, or undefined to let the server use
- * now. The phone's own end time first; else the last thing the phone saw
- * happen in the shift (a trip's end, a breadcrumb); else, for a shift that
- * ended on its own, the earliest moment the automatic end could have fired
- * (it needs three hours open with no driving), so a forgotten shift is not
- * counted as two weeks of work. Never before the start, never after now.
+ * The end time to send with a late end, or undefined when the start is
+ * unreadable (the server then uses now). The phone's own end time first; else
+ * the last thing the phone saw happen in the shift (a trip's end, a
+ * breadcrumb); else the start itself. Only recorded times: the server moves
+ * the end up to the last trip it holds for the shift, so a shift with no
+ * driving the phone knows of still ends at its last real trip, and a
+ * forgotten shift is never counted as two weeks of work or given an invented
+ * length. Never before the start, never after now.
  */
 export function resendEndedAt(input: {
   serverStartedAt: string;
   localEndedAt: string | null;
   lastActivityAt: string | null;
-  autoEnded: boolean;
   nowMs: number;
 }): string | undefined {
   const startMs = Date.parse(input.serverStartedAt);
@@ -60,12 +59,14 @@ export function resendEndedAt(input: {
     const ms = Date.parse(iso);
     return Number.isFinite(ms) && ms >= startMs && ms <= input.nowMs ? ms : null;
   };
-  const chosen =
-    usable(input.localEndedAt) ??
-    usable(input.lastActivityAt) ??
-    (input.autoEnded ? usable(new Date(startMs + STALE_SHIFT_MIN_OPEN_MS).toISOString()) : null);
-  return chosen == null ? undefined : new Date(chosen).toISOString();
+  const chosen = usable(input.localEndedAt) ?? usable(input.lastActivityAt) ?? Math.min(startMs, input.nowMs);
+  return new Date(chosen).toISOString();
 }
+
+/** A shift this phone does not know, open longer than this, is taken as
+ *  forgotten: ended at its last recorded trip, not at the moment the driver
+ *  says end it. Shorter, it may be running on another phone right now. */
+export const FORGOTTEN_SHIFT_MS = 12 * 60 * 60 * 1000;
 
 /** Home asks again at most this often for one shift, if a send failed. */
 export const RESEND_RETRY_MS = 10 * 60 * 1000;

@@ -58,7 +58,7 @@ const endShiftSchema = z.object({
   endedAt: z.string().datetime({ offset: true }).optional(),
 });
 
-/** A phone clock this far ahead of ours is still taken as "now". */
+/** A sent end time moved by more than this (to the start or to now) is logged as clamped. */
 const END_CLOCK_SKEW_MS = 5 * 60 * 1000;
 /** An end delivered later than this is old news: no shift summary push. */
 const LATE_END_NO_PUSH_MS = 15 * 60 * 1000;
@@ -655,15 +655,29 @@ export async function shiftRoutes(app: FastifyInstance) {
 
     const now = new Date();
     let endedAt = now;
+    let endClamped = false;
+    let endLiftedToTrip = false;
     if (parsed.data.endedAt) {
-      const requested = new Date(parsed.data.endedAt);
-      if (requested.getTime() < shift.startedAt.getTime()) {
-        return reply.status(400).send({ error: "A shift can't end before it started" });
+      // Clamped, never refused: a refusal here leaves the shift running, and
+      // the phone's next try would end it "now", which is exactly the
+      // two-week shift this field exists to prevent. A time before the start
+      // (phone clock behind, or a shift whose create reached us late) is the
+      // start; one ahead of us (phone clock ahead) is now.
+      const requestedMs = Date.parse(parsed.data.endedAt);
+      let endMs = Math.min(Math.max(requestedMs, shift.startedAt.getTime()), now.getTime());
+      endClamped = endMs !== requestedMs && Math.abs(endMs - requestedMs) > END_CLOCK_SKEW_MS;
+      // Never before the last trip recorded in the shift: the phone may not
+      // hold every trip (a reinstall), and a trip outside its own shift would
+      // fall out of the shift's figures.
+      const lastTrip = await prisma.trip
+        .aggregate({ where: { userId: request.userId!, shiftId: id }, _max: { endedAt: true } })
+        .catch(() => null);
+      const lastTripMs = lastTrip?._max?.endedAt?.getTime();
+      if (lastTripMs != null && lastTripMs > endMs) {
+        endMs = Math.min(lastTripMs, now.getTime());
+        endLiftedToTrip = true;
       }
-      if (requested.getTime() > now.getTime() + END_CLOCK_SKEW_MS) {
-        return reply.status(400).send({ error: "A shift can't end in the future" });
-      }
-      if (requested.getTime() < now.getTime()) endedAt = requested;
+      endedAt = new Date(endMs);
     }
     const lateMs = now.getTime() - endedAt.getTime();
 
@@ -683,7 +697,9 @@ export async function shiftRoutes(app: FastifyInstance) {
     logEvent("shift.completed", request.userId!, {
       durationSeconds: scorecard?.durationSeconds,
       tripCount: scorecard?.tripsCompleted,
-      ...(parsed.data.endedAt ? { endedAtSent: true, lateSeconds: Math.round(lateMs / 1000) } : {}),
+      ...(parsed.data.endedAt
+        ? { endedAtSent: true, lateSeconds: Math.round(lateMs / 1000), endClamped, endLiftedToTrip }
+        : {}),
     });
 
     return reply.send({ data: updated, scorecard });

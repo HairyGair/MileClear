@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   shiftRow: null as { status: string | null; ended_at: string | null } | null,
+  lock: null as string | null,
   autoEnded: false,
   ending: false,
   endShift: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("../../db/index", () => ({
     Promise.resolve({
       getFirstAsync: async (sql: string) => {
         if (sql.startsWith("SELECT status, ended_at FROM shifts")) return h.shiftRow;
+        if (sql.includes("key = 'active_shift_id'")) return h.lock ? { value: h.lock } : null;
         return { at: null };
       },
       runAsync: h.runAsync,
@@ -52,6 +54,7 @@ const freshId = () => `shift-${++n}`;
 beforeEach(() => {
   vi.clearAllMocks();
   h.shiftRow = null;
+  h.lock = null;
   h.autoEnded = false;
   h.ending = false;
   h.events.length = 0;
@@ -59,7 +62,7 @@ beforeEach(() => {
 });
 
 describe("Home: a server shift this phone already ended", () => {
-  it("is hidden and its end is sent once, with the phone's estimate of the end", async () => {
+  it("is hidden and its end is sent once, at the last time the phone recorded", async () => {
     h.autoEnded = true;
     h.shiftRow = { status: "active", ended_at: null };
     const shift = { id: freshId(), startedAt: START, status: "active" };
@@ -67,7 +70,7 @@ describe("Home: a server shift this phone already ended", () => {
     expect(await hideAndResendIfEndedHere(shift)).toBe(true);
     await flush();
     expect(h.endShift).toHaveBeenCalledTimes(1);
-    expect(h.endShift).toHaveBeenCalledWith(shift.id, { endedAt: "2026-10-22T11:00:00.000Z" });
+    expect(h.endShift).toHaveBeenCalledWith(shift.id, { endedAt: START });
     await flush();
     expect(h.events.map((e) => [e[0], e[1].result])).toEqual([["shift.end_resent", "ended"]]);
     // The phone's copy and any parked end are marked done.
@@ -130,7 +133,7 @@ describe("Start Shift refused because a shift is running", () => {
     const r = await clearBlockingShift(blocked({ activeShift: { id, startedAt: START } }), ask);
     expect(r).toBe("cleared");
     expect(ask).not.toHaveBeenCalled();
-    expect(h.endShift).toHaveBeenCalledWith(id, { endedAt: "2026-10-22T11:00:00.000Z" });
+    expect(h.endShift).toHaveBeenCalledWith(id, { endedAt: START });
   });
 
   it("one this phone never saw: asked first, and left running on Cancel", async () => {
@@ -141,12 +144,30 @@ describe("Start Shift refused because a shift is running", () => {
     expect(h.endShift).not.toHaveBeenCalled();
   });
 
-  it("one this phone never saw, the driver says end it: ended now", async () => {
+  it("one this phone never saw, open for days, the driver says end it: ended at its last record, not now", async () => {
     ask.mockResolvedValueOnce(true);
     const id = freshId();
     const r = await clearBlockingShift(blocked({ activeShift: { id, startedAt: START } }), ask);
     expect(r).toBe("cleared");
+    expect(h.endShift).toHaveBeenCalledWith(id, { endedAt: START });
+  });
+
+  it("one this phone never saw, started an hour ago (maybe another phone): ended now", async () => {
+    ask.mockResolvedValueOnce(true);
+    const id = freshId();
+    const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const r = await clearBlockingShift(blocked({ activeShift: { id, startedAt: recent } }), ask);
+    expect(r).toBe("cleared");
     expect(h.endShift).toHaveBeenCalledWith(id, undefined);
+  });
+
+  it("an active row this phone is not recording (copied from the server): not put through End Shift", async () => {
+    h.shiftRow = { status: "active", ended_at: null };
+    ask.mockResolvedValueOnce(true);
+    const id = freshId();
+    expect(await clearBlockingShift(blocked({ activeShift: { id, startedAt: START } }), ask)).toBe("cleared");
+    expect(h.finishShift).not.toHaveBeenCalled();
+    expect(h.endShift).toHaveBeenCalledWith(id, { endedAt: START });
   });
 
   it("one this phone has running: ended properly through End Shift's steps", async () => {
@@ -154,6 +175,7 @@ describe("Start Shift refused because a shift is running", () => {
     ask.mockResolvedValueOnce(true);
     h.finishShift.mockResolvedValueOnce({ data: {} });
     const id = freshId();
+    h.lock = id;
     expect(await clearBlockingShift(blocked({ activeShift: { id, startedAt: START } }), ask)).toBe("cleared");
     expect(h.finishShift).toHaveBeenCalledWith({ shiftId: id });
     expect(h.endShift).not.toHaveBeenCalled();
@@ -164,7 +186,7 @@ describe("Start Shift refused because a shift is running", () => {
     const id = freshId();
     h.fetchActiveShift.mockResolvedValueOnce({ data: [{ id, startedAt: START }] });
     expect(await clearBlockingShift(blocked({ error: "You already have an active shift" }), ask)).toBe("cleared");
-    expect(h.endShift).toHaveBeenCalledWith(id, { endedAt: "2026-10-22T11:00:00.000Z" });
+    expect(h.endShift).toHaveBeenCalledWith(id, { endedAt: START });
   });
 
   it("any other refusal is not this one", async () => {

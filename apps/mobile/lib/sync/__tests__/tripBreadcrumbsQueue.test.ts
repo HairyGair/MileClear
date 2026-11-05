@@ -213,6 +213,18 @@ describe("ending a shift: only a definite refusal puts it back (5 Nov 2026)", ()
     });
   }
 
+  it("the queued end carries the phone's end time, so a late delivery ends the shift when it ended", async () => {
+    h.apiRequest.mockRejectedValueOnce(apiErr(500, "Internal server error"));
+    const before = Date.now();
+    await syncEndShift("s-1");
+    const body = JSON.parse(h.queue[0].payload!);
+    expect(body.status).toBe("completed");
+    expect(Date.parse(body.endedAt)).toBeGreaterThanOrEqual(before - 1000);
+    // The call made now sends no time: the server's clock is the better one.
+    const sent = JSON.parse((h.apiRequest.mock.calls.at(-1)![1] as { body: string }).body);
+    expect(sent).toEqual({ status: "completed" });
+  });
+
   it("already completed on the server: nothing left to send", async () => {
     h.apiRequest.mockRejectedValueOnce(apiErr(400, "Shift is already completed"));
     await expect(syncEndShift("s-1")).resolves.toBeNull();

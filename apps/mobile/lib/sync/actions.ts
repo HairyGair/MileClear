@@ -651,7 +651,11 @@ export async function syncEndShift(id: string) {
     [now, id]
   );
 
-  await enqueueSync("shift", id, "update", { status: "completed" } as Record<string, unknown>);
+  // The queued copy carries the end time: when it is delivered later (offline,
+  // the server briefly away), the shift ends when it ended, not when the
+  // queue got through. An API without the field ignores it. The call below
+  // sends none: delivered now, the server's own clock is the better time.
+  await enqueueSync("shift", id, "update", { status: "completed", endedAt: now } as Record<string, unknown>);
 
   try {
     const result = await apiEndShift(id);

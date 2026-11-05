@@ -12,6 +12,7 @@ import { finishShift, isShiftEnding, wasShiftAutoEnded } from "../tracking/shift
 import {
   blockingShiftFromRefusal,
   canAttemptResend,
+  FORGOTTEN_SHIFT_MS,
   phoneEndedShift,
   resendEndedAt,
   shouldResendEnd,
@@ -55,6 +56,19 @@ async function lastActivityAt(shiftId: string): Promise<string | null> {
   }
 }
 
+/** This phone is recording the shift (its GPS lock names it). */
+async function holdsTrackingLock(shiftId: string): Promise<boolean> {
+  try {
+    const db = await getDatabase();
+    const lock = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+    );
+    return lock?.value === shiftId;
+  } catch {
+    return false;
+  }
+}
+
 /** The phone's copy matches the server's: ended, nothing left to send. */
 async function markEndedHere(shiftId: string, endedAt: string): Promise<void> {
   try {
@@ -81,14 +95,14 @@ const inFlight = new Map<string, Promise<ResendResult>>();
 
 /**
  * End the server's copy of a shift. With useLocalEndTime the end time is the
- * one the phone recorded (or its best estimate, see resendEndedAt); without,
- * the shift ends now. Joins a send already going for the same shift. Never
+ * last one the phone recorded (see resendEndedAt); with endAtLastRecord, the
+ * server's last trip in the shift; with neither, the shift ends now. Joins a send already going for the same shift. Never
  * throws. Every send is logged as shift.end_resent.
  */
 export function resendShiftEnd(
   serverShift: { id: string; startedAt: string },
   reason: string,
-  opts: { useLocalEndTime: boolean }
+  opts: { useLocalEndTime: boolean; endAtLastRecord?: boolean }
 ): Promise<ResendResult> {
   const running = inFlight.get(serverShift.id);
   if (running) return running;
@@ -100,7 +114,7 @@ export function resendShiftEnd(
 async function sendEnd(
   serverShift: { id: string; startedAt: string },
   reason: string,
-  opts: { useLocalEndTime: boolean }
+  opts: { useLocalEndTime: boolean; endAtLastRecord?: boolean }
 ): Promise<ResendResult> {
   const id = serverShift.id;
   let endedAt: string | undefined;
@@ -111,7 +125,15 @@ async function sendEnd(
       serverStartedAt: serverShift.startedAt,
       localEndedAt: local.row?.endedAt ?? null,
       lastActivityAt: await lastActivityAt(id),
-      autoEnded: local.autoEnded,
+      nowMs: Date.now(),
+    });
+  } else if (opts.endAtLastRecord) {
+    // A forgotten shift the phone knows nothing of: its start, which the
+    // server moves up to the last trip it holds for the shift.
+    endedAt = resendEndedAt({
+      serverStartedAt: serverShift.startedAt,
+      localEndedAt: null,
+      lastActivityAt: null,
       nowMs: Date.now(),
     });
   }
@@ -227,7 +249,7 @@ export async function clearBlockingShift(
 
   if (action === "ask") {
     if (!(await ask(blocking.startedAt))) return "declined";
-    if (local.row?.status === "active" && !local.ending) {
+    if (local.row?.status === "active" && !local.ending && (await holdsTrackingLock(blocking.id))) {
       // This phone has it running: end it properly (GPS off, trips saved).
       try {
         await finishShift({ shiftId: blocking.id });
@@ -236,7 +258,11 @@ export async function clearBlockingShift(
         // refused: fall back to ending the server's copy directly
       }
     }
-    const r = await resendShiftEnd(blocking, "start_blocked_confirmed", { useLocalEndTime: false });
+    const openMs = Date.now() - Date.parse(blocking.startedAt);
+    const r = await resendShiftEnd(blocking, "start_blocked_confirmed", {
+      useLocalEndTime: false,
+      endAtLastRecord: Number.isFinite(openMs) && openMs >= FORGOTTEN_SHIFT_MS,
+    });
     return r === "failed" ? "failed" : "cleared";
   }
 

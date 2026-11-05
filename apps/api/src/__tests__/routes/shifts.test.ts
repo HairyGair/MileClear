@@ -431,23 +431,19 @@ describe("PATCH /shifts/:id", () => {
       expect(savedEndedAt().getTime()).toBeGreaterThanOrEqual(before);
     });
 
-    it("400: refuses an end before the shift started", async () => {
+    it("200: an end before the start is taken as the start, never refused", async () => {
       vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
-      const res = await patch({ status: "completed", endedAt: "2025-02-01T07:59:59.000Z" });
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error).toMatch(/before it started/i);
-      expect(vi.mocked(prisma.shift.update)).not.toHaveBeenCalled();
+      const res = await patch({ status: "completed", endedAt: "2025-02-01T07:00:00.000Z" });
+      expect(res.statusCode).toBe(200);
+      expect(savedEndedAt().toISOString()).toBe(ACTIVE_SHIFT.startedAt.toISOString());
     });
 
-    it("400: refuses an end well in the future", async () => {
+    it("200: an end in the future is taken as now, never refused", async () => {
       vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
-      const res = await patch({
-        status: "completed",
-        endedAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      });
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error).toMatch(/future/i);
-      expect(vi.mocked(prisma.shift.update)).not.toHaveBeenCalled();
+      const ahead = Date.now() + 60 * 60 * 1000;
+      const res = await patch({ status: "completed", endedAt: new Date(ahead).toISOString() });
+      expect(res.statusCode).toBe(200);
+      expect(savedEndedAt().getTime()).toBeLessThan(ahead - 50 * 60 * 1000);
     });
 
     it("200: a phone clock a minute ahead is taken as now", async () => {
@@ -456,6 +452,30 @@ describe("PATCH /shifts/:id", () => {
       const res = await patch({ status: "completed", endedAt: new Date(after).toISOString() });
       expect(res.statusCode).toBe(200);
       expect(savedEndedAt().getTime()).toBeLessThan(after);
+    });
+
+    it("200: never ends before the last trip recorded in the shift", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+      vi.mocked(prisma.trip.aggregate).mockResolvedValue({
+        _sum: { distanceMiles: 0 },
+        _max: { endedAt: new Date("2025-02-01T14:45:00.000Z") },
+      } as any);
+      const res = await patch({ status: "completed", endedAt: ACTIVE_SHIFT.startedAt.toISOString() });
+      expect(res.statusCode).toBe(200);
+      expect(savedEndedAt().toISOString()).toBe("2025-02-01T14:45:00.000Z");
+      const where = (vi.mocked(prisma.trip.aggregate).mock.calls[0][0] as { where: Record<string, unknown> }).where;
+      expect(where).toEqual({ userId: USER_ID, shiftId: SHIFT_ID });
+    });
+
+    it("200: a sent end time later than the last trip is kept", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+      vi.mocked(prisma.trip.aggregate).mockResolvedValue({
+        _sum: { distanceMiles: 0 },
+        _max: { endedAt: new Date("2025-02-01T10:00:00.000Z") },
+      } as any);
+      const res = await patch({ status: "completed", endedAt: "2025-02-01T11:30:00.000Z" });
+      expect(res.statusCode).toBe(200);
+      expect(savedEndedAt().toISOString()).toBe("2025-02-01T11:30:00.000Z");
     });
 
     it("400: refuses a value that is not a date and time", async () => {

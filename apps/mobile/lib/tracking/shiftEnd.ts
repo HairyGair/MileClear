@@ -322,7 +322,11 @@ export async function wasShiftAutoEnded(shiftId: string): Promise<boolean> {
       "SELECT value FROM tracking_state WHERE key = ?",
       [NOTIFIED_KEY]
     );
-    return row?.value === shiftId;
+    if (!row?.value) return false;
+    if (row.value === shiftId) return true;
+    // Ended while it still had its offline id: the server knows it by the id
+    // the sync gave it since (lib/sync/shiftRekey.ts).
+    return (await currentShiftId(db, row.value)) === shiftId;
   } catch {
     return false;
   }

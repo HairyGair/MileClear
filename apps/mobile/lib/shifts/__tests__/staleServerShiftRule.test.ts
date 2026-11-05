@@ -52,7 +52,7 @@ describe("phoneEndedShift / shouldResendEnd", () => {
 describe("resendEndedAt", () => {
   const start = "2026-10-22T08:00:00.000Z";
   const nowMs = Date.parse("2026-11-05T10:00:00.000Z");
-  const base = { serverStartedAt: start, localEndedAt: null, lastActivityAt: null, autoEnded: false, nowMs };
+  const base = { serverStartedAt: start, localEndedAt: null, lastActivityAt: null, nowMs };
 
   it("the phone's own end time first", () => {
     expect(
@@ -64,25 +64,20 @@ describe("resendEndedAt", () => {
     expect(resendEndedAt({ ...base, lastActivityAt: "2026-10-22T13:00:00.000Z" })).toBe("2026-10-22T13:00:00.000Z");
   });
 
-  it("else, for an automatic end, three hours after the start", () => {
-    expect(resendEndedAt({ ...base, autoEnded: true })).toBe("2026-10-22T11:00:00.000Z");
-  });
-
-  it("else nothing: the server ends it now", () => {
-    expect(resendEndedAt(base)).toBeUndefined();
+  it("else the start itself, never an invented length (the server moves it to the last trip)", () => {
+    expect(resendEndedAt(base)).toBe(start);
   });
 
   it("never before the start or after now", () => {
-    expect(resendEndedAt({ ...base, localEndedAt: "2026-10-21T08:00:00.000Z" })).toBeUndefined();
-    expect(resendEndedAt({ ...base, localEndedAt: "2026-12-01T08:00:00.000Z" })).toBeUndefined();
+    expect(resendEndedAt({ ...base, localEndedAt: "2026-10-21T08:00:00.000Z" })).toBe(start);
+    expect(resendEndedAt({ ...base, localEndedAt: "2026-12-01T08:00:00.000Z" })).toBe(start);
     expect(
       resendEndedAt({ ...base, localEndedAt: "garbage", lastActivityAt: "2026-10-22T09:00:00.000Z" })
     ).toBe("2026-10-22T09:00:00.000Z");
   });
 
-  it("an automatic end under three hours ago falls back to now", () => {
-    const recent = { ...base, serverStartedAt: "2026-11-05T08:00:00.000Z", autoEnded: true };
-    expect(resendEndedAt(recent)).toBeUndefined();
+  it("an unreadable start: nothing, the server ends it now", () => {
+    expect(resendEndedAt({ ...base, serverStartedAt: "garbage" })).toBeUndefined();
   });
 });
 
