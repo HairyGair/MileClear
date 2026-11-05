@@ -13,6 +13,7 @@ import {
   LayoutAnimation,
   UIManager,
   AppState,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect, Stack } from "expo-router";
@@ -507,7 +508,7 @@ function PostTripReviewCard({
     "Unclassified";
 
   return (
-    <View style={reviewCardStyles.overlay}>
+    <ScrollView style={reviewCardStyles.overlay} contentContainerStyle={reviewCardStyles.overlayContent} bounces={false}>
       <View style={reviewCardStyles.card}>
         <View style={[reviewCardStyles.iconCircle, { backgroundColor: `${accent}22` }]}>
           <Ionicons name="checkmark-circle" size={36} color={accent} />
@@ -567,7 +568,7 @@ function PostTripReviewCard({
           <Text style={reviewCardStyles.doneButtonText}>Done</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -579,10 +580,14 @@ const reviewCardStyles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: "rgba(0,0,0,0.65)",
+    zIndex: 1000,
+  },
+  // The card sits in the middle, and scrolls when the screen is short (a phone held sideways).
+  overlayContent: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
-    zIndex: 1000,
   },
   card: {
     width: "100%",
@@ -718,6 +723,8 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
 
 export default function TripFormScreen() {
   const largeText = useLargeText();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const landscape = winW > winH;
   const router = useRouter();
   // Miles or kilometres on screen. distanceMiles and everything saved stay
   // in miles; the typed box is in the driver's unit and converted as typed.
@@ -4492,13 +4499,14 @@ export default function TripFormScreen() {
 
           {/* Recenter button */}
           {!followUser && (
-            <TouchableOpacity style={styles.drivingRecenterBtn} onPress={handleRecenter} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Re-centre map on current location">
+            <TouchableOpacity style={[styles.drivingRecenterBtn, landscape && { right: "50%" }]} onPress={handleRecenter} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Re-centre map on current location">
               <Ionicons name="locate-outline" size={20} color={TEXT_1} />
             </TouchableOpacity>
           )}
 
           {/* Bottom floating dashboard */}
-          <View style={styles.drivingDash}>
+          <View style={[styles.drivingDash, landscape && styles.drivingDashSide]}>
+          <ScrollView style={{ flexGrow: 0 }} bounces={false} showsVerticalScrollIndicator={false}>
             {/* Speed hero */}
             <View style={styles.speedHero}>
               <Text style={styles.speedValue}>
@@ -4574,13 +4582,14 @@ export default function TripFormScreen() {
             <TouchableOpacity onPress={handleCancel} style={styles.dashCancelBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Cancel trip">
               <Text style={styles.dashCancelText}>Cancel trip</Text>
             </TouchableOpacity>
+          </ScrollView>
           </View>
         </View>
       )}
 
       {/* Map - visible in ready/arrived modes */}
       {showMap && mode !== "driving" && (
-        <View style={styles.mapArea}>
+        <View style={[styles.mapArea, landscape && { height: Math.round(winH * 0.35) }]}>
           {MapView && startLat != null && startLng != null ? (
             <MapView
               ref={mapRef}
@@ -5929,6 +5938,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
+  },
+  // Held sideways: a panel down the right-hand side, so the map keeps the full height.
+  drivingDashSide: {
+    left: undefined,
+    top: 0,
+    width: "48%",
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 24,
+    paddingBottom: 20,
   },
   drivingDash: {
     position: "absolute",
