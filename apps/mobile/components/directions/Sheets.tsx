@@ -175,6 +175,8 @@ export function PreviewSheet(props: {
               borderTopRightRadius: radii.sheet,
               borderRightWidth: 1,
               paddingTop: spacing.xl + insets.top,
+              // The panel sits on the left, so only its left edge can meet the notch.
+              paddingRight: spacing.xl,
             }
           : { maxHeight: Math.round(winH * 0.9) },
       ]}

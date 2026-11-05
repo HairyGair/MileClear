@@ -232,7 +232,7 @@ export default function DirectionsScreen() {
           // Portrait: the sheet covers the bottom. Sideways it is a panel down the left.
           edgePadding:
             screenW > screenH
-              ? { top: 64 + insets.top, right: 72 + insets.right, bottom: 48, left: previewPanelWidth(screenW) + insets.left + 24 }
+              ? { top: 64 + insets.top, right: 72 + insets.right, bottom: 48, left: previewPanelWidth(screenW) + 24 }
               : { top: 80 + insets.top, right: 48, bottom: sheetH + 24, left: 48 },
           animated: true,
         });
@@ -241,7 +241,7 @@ export default function DirectionsScreen() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [g.phase, fullLine, sheetH, insets.top, insets.left, insets.right, screenW, screenH]);
+  }, [g.phase, fullLine, sheetH, insets.top, insets.right, screenW, screenH]);
 
   const following =
     guiding &&
