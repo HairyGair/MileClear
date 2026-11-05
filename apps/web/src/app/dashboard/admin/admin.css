@@ -151,11 +151,6 @@ table.adm-sr { display: block; }
 
 .adm-iconbtn.adm-side__close { display: none; }
 
-/* globals.css underlines links inside list items for body copy; the nav is
-   chrome, not copy (same specificity, declared later). */
-.adm .adm-side li a,
-.adm .adm-crumbs li a { text-decoration: none; }
-
 .adm-side__nav {
   flex: 1;
   overflow-y: auto;

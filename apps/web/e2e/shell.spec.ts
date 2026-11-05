@@ -21,7 +21,7 @@ test.describe("desktop 1440", () => {
     await expect(rail.getByRole("link", { name: /^More/ })).toBeVisible();
     await expect(rail.getByRole("link")).toHaveCount(5); // four items plus the wordmark
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Sam");
-    await expect(page.getByRole("link", { name: "Trips, 3 to classify" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Trips ?, 3 to classify$/ }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
   });
 

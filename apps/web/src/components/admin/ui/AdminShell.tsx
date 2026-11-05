@@ -168,7 +168,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <ol>
               {crumbs.map((c, i) => (
                 <li key={i}>
-                  {c.href && i < crumbs.length - 1 ? <Link href={c.href}>{c.label}</Link> : <span aria-current={i === crumbs.length - 1 ? "page" : undefined}>{c.label}</span>}
+                  {c.href && i < crumbs.length - 1 ? <Link href={c.href} className="adm-crumb">{c.label}</Link> : <span aria-current={i === crumbs.length - 1 ? "page" : undefined}>{c.label}</span>}
                 </li>
               ))}
             </ol>

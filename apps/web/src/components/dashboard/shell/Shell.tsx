@@ -72,12 +72,14 @@ function Rail() {
                 href={it.href}
                 className={`mc-rail__item${on ? " is-active" : ""}`}
                 aria-current={on ? "page" : undefined}
-                aria-label={it.key === "trips" && count > 0 ? `Trips, ${count} to classify` : undefined}
                 data-tour={`nav-${it.key}`}
               >
                 <Icon name={on ? it.iconActive : it.icon} size={20} />
-                <span className="mc-rail__label">{it.label}</span>
-                {it.key === "trips" && count > 0 && <span className="mc-count mc-rail__count">{countLabel(count, 99)}</span>}
+                <span className="mc-rail__label">
+                  {it.label}
+                  {it.key === "trips" && count > 0 && <span className="mc-sr-only">{`, ${count} to classify`}</span>}
+                </span>
+                {it.key === "trips" && count > 0 && <span className="mc-count mc-rail__count" aria-hidden="true">{countLabel(count, 99)}</span>}
               </Link>
             </li>
           );
@@ -114,14 +116,14 @@ function TabBar() {
             href={it.href}
             className={`mc-tabbar__item${on ? " is-active" : ""}`}
             aria-current={on ? "page" : undefined}
-            aria-label={it.key === "trips" && count > 0 ? `Trips, ${count} to classify` : undefined}
             data-tour={`nav-${it.key}`}
           >
             <span className="mc-tabbar__icon">
               <Icon name={on ? it.iconActive : it.icon} size={24} />
-              {it.key === "trips" && count > 0 && <span className="mc-tabbar__badge">{countLabel(count, 9)}</span>}
+              {it.key === "trips" && count > 0 && <span className="mc-tabbar__badge" aria-hidden="true">{countLabel(count, 9)}</span>}
             </span>
             {it.label}
+            {it.key === "trips" && count > 0 && <span className="mc-sr-only">{`, ${count} to classify`}</span>}
           </Link>
         );
       })}

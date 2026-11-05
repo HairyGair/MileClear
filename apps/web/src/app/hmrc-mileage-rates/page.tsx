@@ -477,7 +477,7 @@ export default function HmrcRatesPage() {
             <ul className="hr-links">
               {RELATED.map((r) => (
                 <li key={r.href}>
-                  <a href={r.href}>
+                  <a href={r.href} className="hr-link">
                     {r.label}
                     <span>{r.note}</span>
                   </a>

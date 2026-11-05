@@ -24,6 +24,10 @@
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .calHead { font-size: 11px; text-align: center; color: var(--mc-text-2); }
 .calDay { aspect-ratio: 1; min-height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-variant-numeric: tabular-nums; background: var(--mc-icon-tile); color: var(--mc-text-2); }
+.calDay { position: relative; }
+.calTip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 5; padding: 4px 8px; border-radius: 6px; white-space: nowrap; font-size: 12px; font-weight: 500; background: var(--mc-bg); color: var(--mc-text-1); border: 1px solid var(--mc-text-2); pointer-events: none; }
+.calDay:hover .calTip, .calDay:focus-visible .calTip { display: block; }
+.calDay:focus-visible { outline: 2px solid var(--mc-text-1); outline-offset: 1px; }
 .calDay[data-level="1"] { background: rgba(245, 166, 35, 0.12); color: var(--mc-text-1); }
 .calDay[data-level="2"] { background: rgba(245, 166, 35, 0.3); color: var(--mc-text-1); }
 .calDay[data-level="3"] { background: rgba(245, 166, 35, 0.55); color: var(--mc-text-1); }

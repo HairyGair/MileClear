@@ -58,9 +58,19 @@ function WorkCalendarCardImpl(_props: { mode?: "work" | "personal" }): React.Rea
           const spoken = new Date(cursor.y, cursor.m - 1, day).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
           const miles = v > 0 ? `${Math.round(v * 10) / 10} miles` : "no driving";
           return (
-            <span key={key} className={s.calDay} data-level={level(v)} role="listitem">
+            <span
+              key={key}
+              className={s.calDay}
+              data-level={level(v)}
+              role="listitem"
+              tabIndex={v > 0 ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") (e.currentTarget as HTMLElement).blur();
+              }}
+            >
               <span aria-hidden="true">{day}</span>
               <span className="mc-sr-only">{`${spoken}: ${miles}`}</span>
+              <span className={s.calTip} aria-hidden="true">{`${spoken}: ${miles}`}</span>
             </span>
           );
         })}
