@@ -35,8 +35,9 @@ export function TaxSoFarCard({
   const result = useMtdTaxSoFar(userId, taxYear, enabled, refreshKey);
   const [open, setOpen] = useState(false);
   // 460 on a tall phone; shorter when held sideways so the sheet still fits.
-  const { height: winH } = useWindowDimensions();
-  const explainMax = Math.min(460, Math.round(winH * 0.7));
+  // Portrait keeps 460 exactly (a small Android phone would otherwise lose some).
+  const { width: winW, height: winH } = useWindowDimensions();
+  const explainMax = winW > winH ? Math.min(460, Math.round(winH * 0.7)) : 460;
   if (!result) return null;
   const view = taxSoFarView(result.summary, {
     env,
@@ -73,7 +74,7 @@ export function TaxSoFarCard({
       </View>
 
       <MtdSheet visible={open} title="How it's worked out" onClose={() => setOpen(false)}>
-        <ScrollView style={{ maxHeight: explainMax }}>
+        <ScrollView style={{ maxHeight: explainMax }} nestedScrollEnabled>
           <EstimateExplained summary={result.summary} env={env} />
         </ScrollView>
       </MtdSheet>

@@ -39,6 +39,7 @@ import {
 } from "../../lib/paywall/lead";
 import { useUser } from "../../lib/user/context";
 import type { GamificationStats } from "@mileclear/shared";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, fonts } from "../../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -63,8 +64,11 @@ interface PaywallModalProps {
 
 export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
   const scrollRef = useRef<ScrollView>(null);
-  // Live width, so the pager re-fits when the phone rotates.
-  const { width: SCREEN_WIDTH } = useWindowDimensions();
+  // Live width, so the pager re-fits when the phone rotates. AppModal pads the
+  // notch sides in landscape (0 in portrait), so a page is the window minus those.
+  const { width: windowWidth } = useWindowDimensions();
+  const sideInsets = useSafeAreaInsets();
+  const SCREEN_WIDTH = windowWidth - sideInsets.left - sideInsets.right;
   const router = useRouter();
   const { user, refreshUser } = useUser();
   const [page, setPage] = useState(0);

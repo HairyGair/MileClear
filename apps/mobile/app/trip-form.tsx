@@ -508,7 +508,7 @@ function PostTripReviewCard({
     "Unclassified";
 
   return (
-    <ScrollView style={reviewCardStyles.overlay} contentContainerStyle={reviewCardStyles.overlayContent} bounces={false}>
+    <ScrollView style={reviewCardStyles.overlay} contentContainerStyle={reviewCardStyles.overlayContent} bounces={false} keyboardShouldPersistTaps="handled">
       <View style={reviewCardStyles.card}>
         <View style={[reviewCardStyles.iconCircle, { backgroundColor: `${accent}22` }]}>
           <Ionicons name="checkmark-circle" size={36} color={accent} />
