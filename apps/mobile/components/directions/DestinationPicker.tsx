@@ -402,7 +402,7 @@ const s = StyleSheet.create({
     borderRadius: radii.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: colors.inputBorder,
     marginTop: spacing.sm,
   },
   searchInput: { flex: 1, fontFamily: fonts.regular, fontSize: 16, color: colors.text1, paddingVertical: spacing.md },
