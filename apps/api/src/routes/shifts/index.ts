@@ -51,7 +51,17 @@ const startShiftSchema = z.object({
 
 const endShiftSchema = z.object({
   status: z.literal("completed"),
+  // When the phone ended the shift. Sent when an end the phone made earlier
+  // never reached us (the phone ended a forgotten shift on its own, and the
+  // end was lost), so the shift does not run on until the moment it is
+  // finally delivered. Absent: the shift ends now, as it always has.
+  endedAt: z.string().datetime({ offset: true }).optional(),
 });
+
+/** A phone clock this far ahead of ours is still taken as "now". */
+const END_CLOCK_SKEW_MS = 5 * 60 * 1000;
+/** An end delivered later than this is old news: no shift summary push. */
+const LATE_END_NO_PUSH_MS = 15 * 60 * 1000;
 
 // A trip in a past shift: typed in, so it has both ends and no breadcrumbs.
 // The miles are the app's road figure when it had one; without them the
@@ -144,7 +154,13 @@ export async function shiftRoutes(app: FastifyInstance) {
       where: { userId, status: "active" },
     });
     if (activeShift) {
-      return reply.status(400).send({ error: "You already have an active shift" });
+      // Same status and text as before, so older apps behave as they did. The
+      // shift is named so a newer app can tell a shift it already ended (the
+      // end never arrived) from one it has never seen.
+      return reply.status(400).send({
+        error: "You already have an active shift",
+        activeShift: { id: activeShift.id, startedAt: activeShift.startedAt },
+      });
     }
 
     const shift = await prisma.shift.create({
@@ -637,22 +653,37 @@ export async function shiftRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: "Shift is already completed" });
     }
 
+    const now = new Date();
+    let endedAt = now;
+    if (parsed.data.endedAt) {
+      const requested = new Date(parsed.data.endedAt);
+      if (requested.getTime() < shift.startedAt.getTime()) {
+        return reply.status(400).send({ error: "A shift can't end before it started" });
+      }
+      if (requested.getTime() > now.getTime() + END_CLOCK_SKEW_MS) {
+        return reply.status(400).send({ error: "A shift can't end in the future" });
+      }
+      if (requested.getTime() < now.getTime()) endedAt = requested;
+    }
+    const lateMs = now.getTime() - endedAt.getTime();
+
     const updated = await prisma.shift.update({
       where: { id },
       data: {
         status: "completed",
-        endedAt: new Date(),
+        endedAt,
       },
       include: { vehicle: true },
     });
 
     const scorecard = await afterShiftCompleted(request.userId!, id, shift.startedAt, {
-      summaryPush: true,
+      summaryPush: lateMs < LATE_END_NO_PUSH_MS,
     });
 
     logEvent("shift.completed", request.userId!, {
       durationSeconds: scorecard?.durationSeconds,
       tripCount: scorecard?.tripsCompleted,
+      ...(parsed.data.endedAt ? { endedAtSent: true, lateSeconds: Math.round(lateMs / 1000) } : {}),
     });
 
     return reply.send({ data: updated, scorecard });

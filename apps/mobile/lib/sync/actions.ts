@@ -7,8 +7,9 @@
 import { randomUUID } from "expo-crypto";
 import type { SQLiteBindValue } from "expo-sqlite";
 import { getDatabase } from "../db/index";
-import { isNetworkError, isLocalSystemError, isDefiniteClientRejection, isServerUnavailable, isItemForbidden } from "./errors";
+import { isNetworkError, isDefiniteClientRejection, isItemForbidden } from "./errors";
 import { enqueueSync } from "./queue";
+import { endShiftFailureOutcome } from "./queueRules";
 import {
   createTrip as apiCreateTrip,
   updateTrip as apiUpdateTrip,
@@ -660,13 +661,23 @@ export async function syncEndShift(id: string) {
     );
     return result;
   } catch (err) {
-    if (isNetworkError(err) || isLocalSystemError(err) || isServerUnavailable(err)) {
-      // Shift ended locally; scorecard unavailable offline. A 502/503/504 is
-      // the server being briefly away, not a rejection - reverting the user's
-      // ended shift because a proxy blinked would be wrong.
+    const outcome = endShiftFailureOutcome(err);
+    if (outcome === "done") {
+      // Already ended on the server (an earlier send landed): nothing to send.
+      await db.runAsync(
+        "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'shift' AND action = 'update' AND status = 'pending'",
+        [new Date().toISOString(), id]
+      );
       return null;
     }
-    // API error — revert local change
+    if (outcome === "keep") {
+      // Shift ended locally; scorecard unavailable. Offline, the server
+      // briefly away (502/503/504, a 500, a 429) or not yet holding the shift
+      // (its create still queued): the queue delivers the end. Reverting the
+      // user's ended shift because a proxy blinked would be wrong.
+      return null;
+    }
+    // A definite refusal: revert local change
     await db.runAsync(
       "UPDATE shifts SET status = 'active', ended_at = NULL WHERE id = ?",
       [id]

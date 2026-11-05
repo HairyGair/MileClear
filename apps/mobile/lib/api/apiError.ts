@@ -17,6 +17,9 @@ export class ApiError extends Error {
   readonly retryable: boolean;
   readonly hint?: string;
   readonly requestId?: string;
+  /** The whole error body, for the few callers that read more than the
+   *  message (POST /shifts names the shift already running). */
+  readonly body?: Record<string, unknown>;
 
   constructor(opts: {
     code: string;
@@ -25,6 +28,7 @@ export class ApiError extends Error {
     retryable: boolean;
     hint?: string;
     requestId?: string;
+    body?: Record<string, unknown>;
   }) {
     super(opts.message);
     this.name = "ApiError";
@@ -33,6 +37,7 @@ export class ApiError extends Error {
     this.retryable = opts.retryable;
     this.hint = opts.hint;
     this.requestId = opts.requestId;
+    this.body = opts.body;
   }
 }
 
@@ -92,6 +97,7 @@ export function parseApiError(body: unknown, statusCode: number): ApiError {
       message: body.error,
       statusCode,
       retryable: statusCode >= 500 || statusCode === 429,
+      body: body as unknown as Record<string, unknown>,
     });
   }
   // Fallback for entirely unparseable responses

@@ -28,10 +28,11 @@ import { syncStartShift, syncCreateEarning } from "../../lib/sync/actions";
 import {
   finishShift,
   checkActiveShiftForAutoEnd,
-  wasShiftAutoEnded,
   onShiftAutoEnded,
   isShiftEnding,
 } from "../../lib/tracking/shiftEnd";
+import { hideAndResendIfEndedHere, clearBlockingShift } from "../../lib/shifts/staleServerShift";
+import { shiftStartLabel } from "../../lib/shifts/staleServerShiftRule";
 import { getDatabase } from "../../lib/db/index";
 import { fetchGamificationStats } from "../../lib/api/gamification";
 import {
@@ -1252,10 +1253,12 @@ export default function DashboardScreen() {
 
       loadStageRef.current = "auto_ended_check";
       let active = shiftRes.data.length > 0 ? shiftRes.data[0] : null;
-      // Ended on its own here, but the server hasn't heard yet (sync still
-      // running or queued offline). Don't re-attach GPS to it below, which
-      // would switch automatic tracking off again.
-      if (active && (await wasShiftAutoEnded(active.id))) active = null;
+      // Ended here (on its own or by the button), but the server hasn't
+      // heard (sync still running, queued offline, or the end was lost).
+      // Don't re-attach GPS to it below, which would switch automatic
+      // tracking off again; send the end again instead, or the server keeps
+      // it running and refuses every Start Shift (5 Nov 2026).
+      if (active && (await hideAndResendIfEndedHere(active))) active = null;
       loadHadShiftRef.current = active != null;
       activeShiftRef.current = active;
       setActiveShift(active);
@@ -1655,6 +1658,25 @@ export default function DashboardScreen() {
     await saveHourlyRate(res.value);
   }, [hourlyRatePence, saveHourlyRate, prompt]);
 
+  // A shift this phone does not know is running on the account (another
+  // phone, a reinstall): the driver decides whether it ends.
+  const askToEndRunningShift = useCallback(
+    (startedAt: string | null) =>
+      new Promise<boolean>((resolve) => {
+        const since = startedAt ? ` since ${shiftStartLabel(startedAt)}` : "";
+        Alert.alert(
+          "Shift already running",
+          `You have a shift running${since}. End it and start a new one?`,
+          [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: "End it and start", style: "destructive", onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) }
+        );
+      }),
+    []
+  );
+
   const handleStartShift = useCallback(async () => {
     setStarting(true);
     startingShiftRef.current = true;
@@ -1662,9 +1684,18 @@ export default function DashboardScreen() {
       // A running pause is offered back once; the shift starts either way.
       const pause = await askAboutPauseBeforeStart("shift");
       if (pause === "resumed") refreshPauseState();
-      const res = await syncStartShift(
-        selectedVehicleId ? { vehicleId: selectedVehicleId } : undefined
-      );
+      const startData = selectedVehicleId ? { vehicleId: selectedVehicleId } : undefined;
+      let res: Awaited<ReturnType<typeof syncStartShift>>;
+      try {
+        res = await syncStartShift(startData);
+      } catch (err) {
+        // Refused because the server still has a shift running: end it
+        // (asking first unless this phone already ended it) and try once more.
+        const cleared = await clearBlockingShift(err, askToEndRunningShift);
+        if (cleared === "declined") return;
+        if (cleared !== "cleared") throw err;
+        res = await syncStartShift(startData);
+      }
       activeShiftRef.current = res.data;
       setActiveShift(res.data);
       haptic("success");
@@ -1694,7 +1725,7 @@ export default function DashboardScreen() {
       startingShiftRef.current = false;
       setStarting(false);
     }
-  }, [selectedVehicleId, isWork, selectedVehicle, refreshPauseState]);
+  }, [selectedVehicleId, isWork, selectedVehicle, refreshPauseState, askToEndRunningShift]);
 
   const handleEndShift = useCallback(() => {
     if (!activeShift) return;

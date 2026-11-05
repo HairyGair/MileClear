@@ -270,8 +270,10 @@ export async function autoEndShiftIfStale(
 
     // The slow part (trip processing, server end) runs detached, so an engine
     // callback is never held up by the network. If the app is suspended or
-    // killed part way, the shift is still active on the server, the dashboard
-    // re-attaches to it on the next open, and this check ends it again.
+    // killed part way, the shift is still active on the server. Home does not
+    // re-attach to it (wasShiftAutoEnded below): it sends the end again
+    // (lib/shifts/staleServerShift.ts), and leftover breadcrumbs are swept
+    // into trips on the next app open.
     void closeShift({ shiftId, vehicleId: row.vehicle_id })
       .then((res) => {
         logDetectionEvent("shift_auto_end_synced", { online: res != null }).catch(

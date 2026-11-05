@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  endShiftFailureOutcome,
   isAlreadyApplied,
   isTripCreateBody,
   parkedItemAction,
@@ -191,5 +192,25 @@ describe("Uploads screen: parked items and removal", () => {
         payload: { startedAt: "2026-10-12T10:00:00.000Z", startLat: 51.5, startLng: -0.1 },
       })
     ).toBe("revive");
+  });
+});
+
+describe("endShiftFailureOutcome (5 Nov 2026: an automatic end reverted unseen)", () => {
+  it("already completed on the server: done", () => {
+    expect(endShiftFailureOutcome(apiErr(400, "Shift is already completed"))).toBe("done");
+  });
+
+  it("a definite refusal of the end: revert, and the driver is told", () => {
+    expect(endShiftFailureOutcome(apiErr(400, "Invalid uuid"))).toBe("revert");
+    expect(endShiftFailureOutcome(apiErr(422, "nope"))).toBe("revert");
+  });
+
+  it("anything that is not a verdict on the end keeps it ended for the queue", () => {
+    for (const code of [401, 403, 404, 429, 500, 502, 503, 504]) {
+      expect(endShiftFailureOutcome(apiErr(code))).toBe("keep");
+    }
+    expect(endShiftFailureOutcome(new TypeError("Network request failed"))).toBe("keep");
+    expect(endShiftFailureOutcome(new Error("Session expired"))).toBe("keep");
+    expect(endShiftFailureOutcome(new Error("something unexpected"))).toBe("keep");
   });
 });

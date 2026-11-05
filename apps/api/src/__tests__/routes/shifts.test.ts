@@ -161,6 +161,24 @@ describe("POST /shifts", () => {
     expect(vi.mocked(prisma.shift.create)).not.toHaveBeenCalled();
   });
 
+  it("400: names the shift already running, keeping the old error text", async () => {
+    vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/shifts",
+      payload: {},
+      headers: validAuthHeader(),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("You already have an active shift");
+    expect(res.json().activeShift).toEqual({
+      id: SHIFT_ID,
+      startedAt: ACTIVE_SHIFT.startedAt.toISOString(),
+    });
+  });
+
   it("201 — accepts optional vehicleId when vehicle is owned by user", async () => {
     vi.mocked(prisma.shift.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.vehicle.findFirst).mockResolvedValue({
@@ -385,6 +403,82 @@ describe("PATCH /shifts/:id", () => {
 
     // Zod: status must be literal "completed"
     expect(res.statusCode).toBe(400);
+  });
+
+  describe("endedAt (an end the phone made earlier)", () => {
+    const patch = (payload: Record<string, unknown>) =>
+      app.inject({
+        method: "PATCH",
+        url: `/shifts/${SHIFT_ID}`,
+        payload,
+        headers: validAuthHeader(),
+      });
+    const savedEndedAt = () =>
+      (vi.mocked(prisma.shift.update).mock.calls[0][0] as { data: { endedAt: Date } }).data.endedAt;
+
+    it("200: ends the shift at the time the phone sent", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+      const res = await patch({ status: "completed", endedAt: "2025-02-01T11:30:00.000Z" });
+      expect(res.statusCode).toBe(200);
+      expect(savedEndedAt().toISOString()).toBe("2025-02-01T11:30:00.000Z");
+    });
+
+    it("200: without endedAt the shift ends now, as before", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+      const before = Date.now();
+      const res = await patch({ status: "completed" });
+      expect(res.statusCode).toBe(200);
+      expect(savedEndedAt().getTime()).toBeGreaterThanOrEqual(before);
+    });
+
+    it("400: refuses an end before the shift started", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+      const res = await patch({ status: "completed", endedAt: "2025-02-01T07:59:59.000Z" });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/before it started/i);
+      expect(vi.mocked(prisma.shift.update)).not.toHaveBeenCalled();
+    });
+
+    it("400: refuses an end well in the future", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+      const res = await patch({
+        status: "completed",
+        endedAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/future/i);
+      expect(vi.mocked(prisma.shift.update)).not.toHaveBeenCalled();
+    });
+
+    it("200: a phone clock a minute ahead is taken as now", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+      const after = Date.now() + 60 * 1000;
+      const res = await patch({ status: "completed", endedAt: new Date(after).toISOString() });
+      expect(res.statusCode).toBe(200);
+      expect(savedEndedAt().getTime()).toBeLessThan(after);
+    });
+
+    it("400: refuses a value that is not a date and time", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(ACTIVE_SHIFT as any);
+      const res = await patch({ status: "completed", endedAt: "yesterday" });
+      expect(res.statusCode).toBe(400);
+      expect(vi.mocked(prisma.shift.update)).not.toHaveBeenCalled();
+    });
+
+    it("404: another driver's shift cannot be ended with a time either", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(null);
+      const res = await patch({ status: "completed", endedAt: "2025-02-01T11:30:00.000Z" });
+      expect(res.statusCode).toBe(404);
+      const where = (vi.mocked(prisma.shift.findFirst).mock.calls[0][0] as { where: Record<string, unknown> }).where;
+      expect(where.userId).toBe(USER_ID);
+    });
+
+    it("400: an already-completed shift still answers 'already completed'", async () => {
+      vi.mocked(prisma.shift.findFirst).mockResolvedValue(COMPLETED_SHIFT as any);
+      const res = await patch({ status: "completed", endedAt: "2025-02-01T11:30:00.000Z" });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/already completed/i);
+    });
   });
 });
 

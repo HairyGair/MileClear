@@ -72,9 +72,13 @@ export function startShift(data?: { vehicleId?: string }) {
   });
 }
 
-export function endShift(id: string) {
+/** endedAt: when the phone ended it, for an end delivered late. An API that
+ *  does not know the field ignores it and ends the shift now. */
+export function endShift(id: string, opts?: { endedAt?: string }) {
   return apiRequest<{ data: ShiftWithVehicle }>(`/shifts/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ status: "completed" }),
+    body: JSON.stringify(
+      opts?.endedAt ? { status: "completed", endedAt: opts.endedAt } : { status: "completed" }
+    ),
   });
 }

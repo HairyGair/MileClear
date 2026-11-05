@@ -1,6 +1,9 @@
 // Small decisions the sync queue makes about one item, kept pure so they can
 // be tested without SQLite or the network (index.ts pulls in React Native).
 
+import { ApiError } from "../api/apiError";
+import { isDefiniteClientRejection } from "./errors";
+
 /** Queue status for an item the server refused for a reason that is neither
  *  the payload nor the network: a free account's third saved place (HTTP 403).
  *  Not pending (it would retry every minute and hold back the queue), not
@@ -18,6 +21,36 @@ export const HELD_STATUS = "held";
  */
 export function isAlreadyApplied(entityType: string, action: string, statusCode: number | null, message: string): boolean {
   return entityType === "shift" && action === "update" && statusCode === 400 && /already completed/i.test(message);
+}
+
+export type EndShiftFailureOutcome = "done" | "keep" | "revert";
+
+/**
+ * What ending a shift does with the phone's copy when the server call fails.
+ *
+ *   "Shift is already completed"           -> done: the end is in place
+ *   any other definite refusal (400, 422)  -> revert: the shift is running
+ *                                             again on the phone, and the
+ *                                             driver is told, as before
+ *   anything else                          -> keep: ended on the phone, the
+ *                                             queue delivers it later
+ *
+ * "Anything else" used to revert too: a 500, a 429, a 401 that outlived its
+ * token refresh, a 404 while the shift's own create was still queued. When
+ * the shift had ended on its own, nobody saw the revert: the GPS was already
+ * released and Home hid the shift as ended, while the server kept it running
+ * and refused every Start Shift (5 Nov 2026, a driver stuck for two weeks).
+ * A 404 is kept because the queue knows what to do with it: wait behind the
+ * create, or drop the edit when the server has no such shift.
+ */
+export function endShiftFailureOutcome(err: unknown): EndShiftFailureOutcome {
+  if (err instanceof ApiError && isAlreadyApplied("shift", "update", err.statusCode, err.message)) {
+    return "done";
+  }
+  if (isDefiniteClientRejection(err) && !(err instanceof ApiError && err.statusCode === 404)) {
+    return "revert";
+  }
+  return "keep";
 }
 
 export type ParkedItemAction = "drop" | "hold" | "revive" | "rebuild";

@@ -193,3 +193,37 @@ describe("(3) every other entity behaves exactly as main", () => {
     });
   }
 });
+
+describe("ending a shift: only a definite refusal puts it back (5 Nov 2026)", () => {
+  const apiErr = (statusCode: number, message: string) =>
+    new ApiError({ code: "ERR", message, statusCode, retryable: statusCode >= 500 });
+  const reverted = () => runSql().some(([q]) => q.startsWith("UPDATE shifts SET status = 'active'"));
+
+  for (const [code, message] of [
+    [500, "Internal server error"],
+    [429, "Too many requests"],
+    [401, "Unauthorized"],
+    [404, "Shift not found"],
+  ] as const) {
+    it(`${code}: the shift stays ended and its end stays queued`, async () => {
+      h.apiRequest.mockRejectedValueOnce(apiErr(code, message));
+      await expect(syncEndShift("s-1")).resolves.toBeNull();
+      expect(reverted()).toBe(false);
+      expect(h.queue.map((q) => [q.entity_id, q.action, q.status])).toEqual([["s-1", "update", "pending"]]);
+    });
+  }
+
+  it("already completed on the server: nothing left to send", async () => {
+    h.apiRequest.mockRejectedValueOnce(apiErr(400, "Shift is already completed"));
+    await expect(syncEndShift("s-1")).resolves.toBeNull();
+    expect(reverted()).toBe(false);
+    expect(h.queue.map((q) => q.status)).toEqual(["synced"]);
+  });
+
+  it("a definite refusal still puts the shift back and throws", async () => {
+    h.apiRequest.mockRejectedValueOnce(refused());
+    await expect(syncEndShift("s-1")).rejects.toBeInstanceOf(ApiError);
+    expect(reverted()).toBe(true);
+    expect(h.queue).toEqual([]);
+  });
+});
