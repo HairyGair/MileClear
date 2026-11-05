@@ -17,7 +17,7 @@ import { useAuth } from "../../lib/auth/context";
 import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
 import { getDatabase } from "../../lib/db";
 import { colors, fonts } from "../../lib/theme";
-import { useAnnounceError } from "../../lib/a11y/announce";
+import { useErrorState } from "../../lib/a11y/announce";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
 try { AppleAuthentication = require("expo-apple-authentication"); } catch {}
@@ -37,8 +37,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
-  const [error, setError] = useState("");
-  useAnnounceError(error);
+  const [error, setError] = useErrorState();
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -195,7 +194,7 @@ export default function RegisterScreen() {
             placeholder="you@example.com"
             placeholderTextColor={TEXT_3}
             keyboardType="email-address"
-            textContentType="emailAddress"
+            textContentType="username"
             autoComplete="email"
             autoCapitalize="none"
             autoCorrect={false}
@@ -212,8 +211,8 @@ export default function RegisterScreen() {
             onBlur={() => setFocusedField(null)}
             placeholder="Optional"
             placeholderTextColor={TEXT_3}
-            textContentType="name"
-            autoComplete="name"
+            textContentType="nickname"
+            autoComplete="nickname"
             autoCapitalize="words"
             autoCorrect={false}
             editable={!loading}

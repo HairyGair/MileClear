@@ -28,7 +28,12 @@ interface SectionProps {
 function Section({ num, icon, title, children }: SectionProps) {
   return (
     <View style={s.section}>
-      <View style={s.sectionHead}>
+      <View
+        style={s.sectionHead}
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={`${num}. ${title}`}
+      >
         <View style={s.numBadge}>
           <Text style={s.numText}>{num}</Text>
         </View>
@@ -64,7 +69,7 @@ export default function FirstTaxReturnScreen() {
     <ScrollView style={s.root} contentContainerStyle={s.content}>
       {/* Hero */}
       <View style={s.hero}>
-        <Text style={s.heroTitle}>Your first Self Assessment</Text>
+        <Text style={s.heroTitle} accessibilityRole="header">Your first Self Assessment</Text>
         <Text style={s.heroSub}>
           A plain-English walkthrough for self-employed drivers filing for the first time.
           About 5 minutes to read.

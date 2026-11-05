@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { BetaBanner } from "../components/BetaBanner";
 import { isMtdTest } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { colors, fonts } from "../lib/theme";
-import { useAnnounceError } from "../lib/a11y/announce";
+import { announce, useAnnounceError } from "../lib/a11y/announce";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -42,8 +42,9 @@ const EMPTY_MESSAGE = `Enter your National Insurance number. ${FORMAT_ADVICE}`;
 // boundary clears the 3:1 minimum for UI components (WCAG 1.4.11).
 const FIELD_OUTLINE = "#708096";
 
+// Spaces and hyphens are dropped, so a number pasted as "QQ-12-34-56-C" works.
 function normalise(raw: string): string {
-  return raw.replace(/\s+/g, "").toUpperCase();
+  return raw.replace(/[\s-]+/g, "").toUpperCase();
 }
 
 /** Format a NINO as "AB 12 34 56 C" for display while typing. */
@@ -74,9 +75,20 @@ export default function TaxMtdNinoScreen() {
   }
   useAnnounceError(errorText);
 
+  // Blocks a second save from a quick double tap before the button re-renders.
+  const submittingRef = useRef(false);
+
   const onSubmit = useCallback(async () => {
     setTriedSave(true);
-    if (!isValid) return;
+    if (!isValid) {
+      // If the same error is already on screen, nothing changes, so the hook
+      // stays quiet: say it again so a VoiceOver user knows Save did not go.
+      const message = normalised.length === 0 ? EMPTY_MESSAGE : WRONG_MESSAGE;
+      if (message === errorText) announce(message);
+      return;
+    }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       await setHmrcNino(normalised);
@@ -85,9 +97,10 @@ export default function TaxMtdNinoScreen() {
       const msg = isApiError(err) ? err.message : err instanceof Error ? err.message : "Couldn't save your National Insurance number.";
       Alert.alert("Couldn't save", msg);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [normalised, isValid]);
+  }, [normalised, isValid, errorText]);
 
   return (
     <KeyboardAvoidingView

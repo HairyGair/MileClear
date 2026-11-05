@@ -492,8 +492,7 @@ export function LiveMapTracker({
           onPress={handleToggleTrail}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Show route trail on map"
-          accessibilityState={{ selected: showTrail }}
+          accessibilityLabel={showTrail ? "Hide route trail on map" : "Show route trail on map"}
         >
           <Ionicons
             name={showTrail ? "trail-sign" : "trail-sign-outline"}

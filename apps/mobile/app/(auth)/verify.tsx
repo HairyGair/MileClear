@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useAuth } from "../../lib/auth/context";
 import { colors, fonts } from "../../lib/theme";
-import { useAnnounceError } from "../../lib/a11y/announce";
+import { useErrorState } from "../../lib/a11y/announce";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -26,8 +26,7 @@ const BG = colors.bg;
 export default function VerifyScreen() {
   const { completeAuth, sendVerificationCode, verifyEmail } = useAuth();
   const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  useAnnounceError(error);
+  const [error, setError] = useErrorState();
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);

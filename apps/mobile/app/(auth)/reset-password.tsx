@@ -14,7 +14,7 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
 import { colors, fonts } from "../../lib/theme";
-import { useAnnounceError } from "../../lib/a11y/announce";
+import { useErrorState } from "../../lib/a11y/announce";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -31,8 +31,7 @@ export default function ResetPasswordScreen() {
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
-  useAnnounceError(error);
+  const [error, setError] = useErrorState();
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
