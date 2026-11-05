@@ -147,7 +147,7 @@ function CategoryPicker({
         activeOpacity={1}
         onPress={onClose}
       >
-        <View style={styles.modalSheet}>
+        <View style={styles.modalSheet} onAccessibilityEscape={onClose}>
           <View style={styles.modalHandle} />
           <Text style={styles.modalTitle}>{title}</Text>
           <ScrollView style={styles.modalList}>
@@ -415,7 +415,7 @@ export default function InboxScreen() {
           onPress={() => !busy && setActive(null)}
         >
           {active ? (
-            <View style={styles.modalSheet}>
+            <View style={styles.modalSheet} onAccessibilityEscape={() => !busy && setActive(null)}>
               <View style={styles.modalHandle} />
               <Text style={styles.modalTitle}>{active.merchant}</Text>
               <Text style={styles.modalSubtitle}>

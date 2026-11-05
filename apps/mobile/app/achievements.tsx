@@ -107,7 +107,9 @@ export default function AchievementsScreen() {
               accessible={true}
               accessibilityLabel={badgeSpokenLabel(meta.label, meta.description, isEarned)}
             >
-              <View style={s.badgeMedal}>
+              {/* Only the medal is dimmed when locked: fading the whole card
+                  took its text below 4.5:1 (WCAG 1.4.3). */}
+              <View style={[s.badgeMedal, !isEarned && s.emojiLocked]}>
                 <Medal type={type} state={isEarned ? "earned" : "next"} size={40} />
               </View>
               <Text
@@ -211,10 +213,8 @@ const s = StyleSheet.create({
     minHeight: 120,
     borderWidth: 1,
     borderColor: BORDER,
-    opacity: 0.35,
   },
   badgeEarned: {
-    opacity: 1,
     borderColor: "rgba(245, 166, 35, 0.12)",
   },
   badgePremium: {

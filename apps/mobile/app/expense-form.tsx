@@ -229,7 +229,7 @@ export default function ExpenseFormScreen() {
           onPress={() => setCategoryPickerOpen(true)}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={`Category, ${selectedCategory ? selectedCategory.label : "not chosen"}`}
+          accessibilityLabel={`Category, ${selectedCategory ? selectedCategory.label : "Choose a category"}`}
           accessibilityHint="Opens the list of categories"
         >
           <Text style={[styles.pickerText, !category && styles.placeholder]}>
@@ -395,7 +395,7 @@ export default function ExpenseFormScreen() {
           onPress={() => setCategoryPickerOpen(false)}
           accessible={false}
         >
-          <View style={styles.modalSheet}>
+          <View style={styles.modalSheet} onAccessibilityEscape={() => setCategoryPickerOpen(false)}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Choose a category</Text>
             <ScrollView style={styles.modalList}>

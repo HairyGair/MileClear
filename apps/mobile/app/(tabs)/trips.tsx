@@ -1364,13 +1364,17 @@ export default function TripsScreen() {
         accessibilityActions={
           mergeMode
             ? undefined
-            : [
-                { name: "classify", label: `Mark as ${targetLabel}` },
-                ...(isRecentAuto ? [{ name: "undo", label: "Put back in To sort" }] : []),
-                { name: "note", label: "Add or edit note" },
-                ...(item._isLocal ? [] : [{ name: "join", label: "Join trips" }]),
-                { name: "delete", label: "Delete trip" },
-              ]
+            : item._isLocal
+              ? // Unsynced trips get no swipe and only a note in the long-press
+                // menu (the rest needs the server copy), so offer the same here.
+                [{ name: "note", label: "Add or edit note" }]
+              : [
+                  { name: "classify", label: `Mark as ${targetLabel}` },
+                  ...(isRecentAuto ? [{ name: "undo", label: "Put back in To sort" }] : []),
+                  { name: "note", label: "Add or edit note" },
+                  { name: "join", label: "Join trips" },
+                  { name: "delete", label: "Delete trip" },
+                ]
         }
         onAccessibilityAction={(e) => {
           // The same handlers the swipe and the long-press menu use, so a

@@ -148,7 +148,8 @@ export default function RegisterScreen() {
           <Text style={s.title} accessibilityRole="header">Get started</Text>
 
           {/* Always mounted: TalkBack only reads changes to a live region that is already on screen. */}
-          <View accessibilityLiveRegion="polite">
+          {/* collapsable={false}: a View with no style can be flattened away, taking the live region with it. */}
+          <View accessibilityLiveRegion="polite" collapsable={false}>
             {error ? (
               <View style={s.errorWrap} accessibilityRole="alert">
                 <Text style={s.errorText}>{error}</Text>

@@ -247,7 +247,7 @@ export default function InvoicesScreen() {
       )}
 
       {/* Filter tabs */}
-      <View style={styles.tabs}>
+      <View style={styles.tabs} accessibilityRole="tablist">
         {(Object.keys(TAB_LABELS) as FilterTab[]).map((t) => (
           <TouchableOpacity accessibilityRole="tab" accessibilityState={{ selected: filter === t }}
             key={t}

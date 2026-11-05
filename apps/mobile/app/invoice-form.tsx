@@ -772,7 +772,7 @@ export default function InvoiceFormScreen() {
           activeOpacity={1}
           onPress={() => setShowClientPicker(false)}
         >
-          <View style={styles.pickerSheet}>
+          <View style={styles.pickerSheet} onAccessibilityEscape={() => setShowClientPicker(false)}>
             <Text style={styles.pickerTitle}>Pick a client</Text>
             <FlatList
               data={clients}
