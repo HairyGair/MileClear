@@ -12,6 +12,7 @@ import {
   Linking,
   AppState,
 } from "react-native";
+import { useSheetMaxHeight } from "../../lib/useSheetMaxHeight";
 import { AppModal } from "../../components/AppModal";
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
@@ -171,6 +172,7 @@ function ExplainerItem({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; t
 }
 
 export default function DashboardScreen() {
+  const explainerMax = useSheetMaxHeight(0.85);
   const router = useRouter();
   // Named `units`: `dist` is a live trip's miles further down.
   const units = useDistanceUnit();
@@ -1941,7 +1943,7 @@ export default function DashboardScreen() {
       onRequestClose={() => dismissWorkExplainer("system")}
     >
       <View style={s.explainerOverlay}>
-        <View style={s.explainerCard}>
+        <View style={[s.explainerCard, explainerMax]}>
           <ScrollView
             // Without this the ScrollView sizes itself to its content,
             // overflows the card's maxHeight and is clipped instead of
@@ -2000,7 +2002,7 @@ export default function DashboardScreen() {
   // of 41 Android phones undetermined (21 Sep 2026).
   const motionPrimerCard = (
     <View style={s.explainerOverlay}>
-      <View style={s.explainerCard}>
+      <View style={[s.explainerCard, explainerMax]}>
         <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
           <View style={s.explainerIconWrap}>
             <Ionicons name="walk" size={28} color="#f5a623" />
@@ -2065,7 +2067,7 @@ export default function DashboardScreen() {
     >
       {primerStep === "motion" ? motionPrimerCard : (
       <View style={s.explainerOverlay}>
-        <View style={s.explainerCard}>
+        <View style={[s.explainerCard, explainerMax]}>
           <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
             <View style={s.explainerIconWrap}>
               <Ionicons name="location" size={28} color="#f5a623" />

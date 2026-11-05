@@ -23,6 +23,7 @@ import {
   ScrollView,
   Dimensions,
 } from "react-native";
+import { useSheetMaxHeight } from "../lib/useSheetMaxHeight";
 import { Ionicons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
 import { AppModal } from "./AppModal";
@@ -50,6 +51,7 @@ export function ContextualHelp({
   color = colors.text3,
   accessibilityLabel,
 }: ContextualHelpProps) {
+  const sheetMax = useSheetMaxHeight(0.85);
   const [visible, setVisible] = useState(false);
   const topic = getHelpTopic(topicId);
   const pathname = usePathname();
@@ -80,7 +82,7 @@ export function ContextualHelp({
 
       <AppModal visible={visible} onRequestClose={() => setVisible(false)}>
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, sheetMax]}>
             <View style={styles.handle} />
             <View style={styles.header}>
               <View style={styles.iconWrap}>

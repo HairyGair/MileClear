@@ -12,6 +12,7 @@ import {
   Platform,
   Dimensions,
 } from "react-native";
+import { useSheetMaxHeight } from "../lib/useSheetMaxHeight";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "../components/AppModal";
@@ -40,6 +41,7 @@ const BORDER = "rgba(255,255,255,0.06)";
 type VehicleLite = { id: string; make: string; model: string };
 
 export default function ExpenseFormScreen() {
+  const sheetMax = useSheetMaxHeight(0.8);
   const router = useRouter();
   const {
     id,
@@ -395,7 +397,7 @@ export default function ExpenseFormScreen() {
           onPress={() => setCategoryPickerOpen(false)}
           accessible={false}
         >
-          <View style={styles.modalSheet} onAccessibilityEscape={() => setCategoryPickerOpen(false)}>
+          <View style={[styles.modalSheet, sheetMax]} onAccessibilityEscape={() => setCategoryPickerOpen(false)}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Choose a category</Text>
             <ScrollView style={styles.modalList}>

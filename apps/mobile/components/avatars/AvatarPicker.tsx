@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
+import { useSheetMaxHeight } from "../../lib/useSheetMaxHeight";
 import { AppModal } from "../AppModal";
 import { AVATARS, AvatarIcon, UserAvatar } from "./AvatarRegistry";
 import { colors, fonts } from "../../lib/theme";
@@ -24,6 +25,7 @@ interface AvatarPickerProps {
 }
 
 export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
+  const sheetMax = useSheetMaxHeight(0.8);
   const largeText = useLargeText();
   const [visible, setVisible] = useState(false);
 
@@ -54,7 +56,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
         onRequestClose={() => setVisible(false)}
       >
         <View style={styles.overlay}>
-          <View style={styles.sheet} accessibilityViewIsModal>
+          <View style={[styles.sheet, sheetMax]} accessibilityViewIsModal>
             <View style={styles.handle} />
             <Text style={styles.title}>Choose Your Ride</Text>
 

@@ -10,6 +10,7 @@ import {
   ScrollView,
   Dimensions,
 } from "react-native";
+import { useSheetMaxHeight } from "../lib/useSheetMaxHeight";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter, Stack } from "expo-router";
 import {
@@ -140,6 +141,7 @@ function CategoryPicker({
   onSelect,
   onClose,
 }: CategoryPickerProps) {
+  const sheetMax = useSheetMaxHeight(0.8);
   return (
     <AppModal visible={visible} animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity accessible={false}
@@ -147,7 +149,7 @@ function CategoryPicker({
         activeOpacity={1}
         onPress={onClose}
       >
-        <View style={styles.modalSheet} onAccessibilityEscape={onClose}>
+        <View style={[styles.modalSheet, sheetMax]} onAccessibilityEscape={onClose}>
           <View style={styles.modalHandle} />
           <Text style={styles.modalTitle}>{title}</Text>
           <ScrollView style={styles.modalList}>
@@ -213,6 +215,7 @@ function BankProView() {
 }
 
 export default function InboxScreen() {
+  const sheetMax = useSheetMaxHeight(0.8);
   const router = useRouter();
   const { user } = useUser();
   const isPro = !!user?.isPremium;
@@ -415,7 +418,7 @@ export default function InboxScreen() {
           onPress={() => !busy && setActive(null)}
         >
           {active ? (
-            <View style={styles.modalSheet} onAccessibilityEscape={() => !busy && setActive(null)}>
+            <View style={[styles.modalSheet, sheetMax]} onAccessibilityEscape={() => !busy && setActive(null)}>
               <View style={styles.modalHandle} />
               <Text style={styles.modalTitle}>{active.merchant}</Text>
               <Text style={styles.modalSubtitle}>

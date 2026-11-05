@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Dimensions,
   Keyboard,
   Platform,
 } from "react-native";
@@ -30,8 +29,6 @@ try {
 } catch {
   // Not available in Expo Go
 }
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface MapPickerModalProps {
   visible: boolean;
@@ -276,8 +273,8 @@ const styles = StyleSheet.create({
     backgroundColor: BG,
   },
   map: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
+    // Fills the container so it follows rotation (a load-time Dimensions read goes stale).
+    ...StyleSheet.absoluteFillObject,
   },
   // Search bar
   searchContainer: {

@@ -24,7 +24,7 @@ const THUMB = 72;
 /** Full-screen view of one image; tap anywhere to close. */
 function FullImage({ uri, onClose }: { uri: string | null; onClose: () => void }) {
   return (
-    <Modal visible={!!uri} transparent animationType="fade" presentationStyle="overFullScreen" onRequestClose={onClose} statusBarTranslucent>
+    <Modal supportedOrientations={["portrait", "landscape"]} visible={!!uri} transparent animationType="fade" presentationStyle="overFullScreen" onRequestClose={onClose} statusBarTranslucent>
       <TouchableOpacity
         style={s.fullBackdrop}
         activeOpacity={1}

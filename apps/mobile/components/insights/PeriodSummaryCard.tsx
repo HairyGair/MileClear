@@ -291,7 +291,7 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
       </View>
 
       {businessShare && (
-        <Modal visible={shareOpen} transparent animationType="fade" onRequestClose={() => setShareOpen(false)} onDismiss={runPendingBusinessShare}>
+        <Modal supportedOrientations={["portrait", "landscape"]} visible={shareOpen} transparent animationType="fade" onRequestClose={() => setShareOpen(false)} onDismiss={runPendingBusinessShare}>
           <View style={styles.sheetBackdrop}>
             <View style={styles.sheet} accessibilityViewIsModal>
               <Text style={styles.sheetTitle} maxFontSizeMultiplier={fontScaleCap.heading} accessibilityRole="header">

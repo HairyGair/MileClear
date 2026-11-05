@@ -3,7 +3,7 @@
     "name": "MileClear",
     "slug": "mileclear",
     "version": "1.4.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/branding/icon-1024.png",
     "scheme": "mileclear",
     "userInterfaceStyle": "automatic",

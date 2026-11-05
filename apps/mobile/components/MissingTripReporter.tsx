@@ -701,6 +701,7 @@ export function MissingTripReporter({
       </TouchableOpacity>
 
       <Modal
+        supportedOrientations={["portrait", "landscape"]}
         visible={open}
         transparent
         animationType="slide"

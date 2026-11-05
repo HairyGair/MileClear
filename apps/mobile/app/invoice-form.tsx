@@ -760,6 +760,7 @@ export default function InvoiceFormScreen() {
       {/* Saved-client picker. overFullScreen + statusBarTranslucent per the
           iPad modal hit-testing rules (build 60 rejection). */}
       <Modal
+        supportedOrientations={["portrait", "landscape"]}
         visible={showClientPicker}
         transparent
         animationType="fade"

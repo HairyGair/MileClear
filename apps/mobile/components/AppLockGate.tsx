@@ -29,6 +29,7 @@ export function AppLockGate() {
 
   return (
     <Modal
+      supportedOrientations={["portrait", "landscape"]}
       visible
       animationType="fade"
       presentationStyle="overFullScreen"

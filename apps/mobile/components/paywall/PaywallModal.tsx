@@ -5,7 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   Alert,
   ActivityIndicator,
   Linking,
@@ -44,8 +44,6 @@ import { colors, fonts } from "../../lib/theme";
 // Local theme aliases — same pattern as the (tabs) screens.
 const GREEN = colors.green;
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-
 const BG = colors.bg;
 const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
@@ -65,6 +63,8 @@ interface PaywallModalProps {
 
 export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
   const scrollRef = useRef<ScrollView>(null);
+  // Live width, so the pager re-fits when the phone rotates.
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const router = useRouter();
   const { user, refreshUser } = useUser();
   const [page, setPage] = useState(0);
@@ -113,15 +113,22 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
     scrollRef.current?.scrollTo({ x: 0, animated: false });
   }, [visible, source]);
 
+  // After a rotation the page width changes, so snap back onto the current page.
+  const pageRef = useRef(0);
+  pageRef.current = page;
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ x: pageRef.current * SCREEN_WIDTH, animated: false });
+  }, [SCREEN_WIDTH]);
+
   const handleScroll = useCallback((event: any) => {
     const x = event.nativeEvent.contentOffset.x;
     setPage(Math.round(x / SCREEN_WIDTH));
-  }, []);
+  }, [SCREEN_WIDTH]);
 
   const goToPage = useCallback((p: number) => {
     scrollRef.current?.scrollTo({ x: p * SCREEN_WIDTH, animated: true });
     setPage(p);
-  }, []);
+  }, [SCREEN_WIDTH]);
 
   const handlePurchase = useCallback(async () => {
     setPurchasing(true);

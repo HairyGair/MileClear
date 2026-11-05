@@ -19,6 +19,7 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
+import { useSheetMaxHeight } from "../../lib/useSheetMaxHeight";
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "../AppModal";
 import {
@@ -85,6 +86,7 @@ export function LinkEarningSheet({
   onResolved,
   onClose,
 }: LinkEarningSheetProps) {
+  const sheetMax = useSheetMaxHeight(0.82);
   const largeText = useLargeText();
   // Local copy of the candidate list — we mutate it as the user links
   // rows so each successful link removes that row from view, letting
@@ -156,7 +158,7 @@ export function LinkEarningSheet({
   return (
     <AppModal visible={visible} animationType="slide" onRequestClose={handleDone}>
       <Pressable style={styles.scrim} onPress={handleDone} accessible={false}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
+        <Pressable style={[styles.sheet, sheetMax]} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
           <View style={styles.handle} />
 
           {/* Header */}

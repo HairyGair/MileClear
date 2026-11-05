@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
@@ -38,8 +37,6 @@ const TEXT_3 = colors.text3;
 
 const DAY_ABBREVS = ["M", "T", "W", "T", "F", "S", "S"];
 const DAY_FULL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-const SCREEN_W = Dimensions.get("window").width;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function fmtMinutes(mins: number): string {
@@ -1363,7 +1360,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
-    maxWidth: SCREEN_W * 0.7,
+    maxWidth: "70%",
     lineHeight: 20,
   },
 });

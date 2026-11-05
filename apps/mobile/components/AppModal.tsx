@@ -54,6 +54,7 @@ export function AppModal({
 }: AppModalProps) {
   return (
     <Modal
+      supportedOrientations={["portrait", "landscape"]}
       visible={visible}
       onRequestClose={onRequestClose}
       animationType={animationType}

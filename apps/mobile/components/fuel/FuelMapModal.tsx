@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
 } from "react-native";
 import { AppModal } from "../AppModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,8 +33,6 @@ function getMapComponents() {
     return null;
   }
 }
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const LONDON = { lat: 51.5074, lng: -0.1278 };
 
@@ -244,8 +241,8 @@ const styles = StyleSheet.create({
     backgroundColor: BG,
   },
   map: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
+    // Fills the container so it follows rotation (a load-time Dimensions read goes stale).
+    ...StyleSheet.absoluteFillObject,
   },
   // Callouts
   callout: {

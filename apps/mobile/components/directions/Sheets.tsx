@@ -156,7 +156,7 @@ export function PreviewSheet(props: {
       )}
       {body}
       <ReportLink onPress={props.onReport} />
-      <Modal visible={about} transparent animationType="fade" onRequestClose={() => setAbout(false)}>
+      <Modal supportedOrientations={["portrait", "landscape"]} visible={about} transparent animationType="fade" onRequestClose={() => setAbout(false)}>
         <View style={s.dim}>
           <View style={[s.sheet, s.modalSheet, { paddingBottom: props.bottomInset + spacing.lg }]}>
             <Text style={s.title}>About these directions</Text>

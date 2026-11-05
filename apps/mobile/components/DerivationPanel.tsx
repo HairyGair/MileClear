@@ -1,4 +1,5 @@
 import {
+  useWindowDimensions,
   View,
   Text,
   Pressable,
@@ -10,6 +11,7 @@ import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import type { NumberDerivation } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
+import { useSheetMaxHeight } from "../lib/useSheetMaxHeight";
 
 const BG = colors.bg;
 const CARD_BG = colors.surface;
@@ -44,6 +46,8 @@ export function DerivationPanel({
   derivation,
   onClose,
 }: DerivationPanelProps) {
+  const { height: winH } = useWindowDimensions();
+  const sheetMax = useSheetMaxHeight(0.85);
   return (
     <AppModal
       visible={visible}
@@ -51,7 +55,7 @@ export function DerivationPanel({
       onRequestClose={onClose}
     >
       <Pressable style={styles.scrim} onPress={onClose} accessible={false}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
+        <Pressable style={[styles.sheet, sheetMax, { minHeight: Math.round(winH * 0.5) }]} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
           {/* Drag handle for visual affordance */}
           <View style={styles.handle} />
 
