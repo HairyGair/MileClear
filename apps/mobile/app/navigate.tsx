@@ -71,7 +71,7 @@ class GuidanceBoundary extends Component<{ fallback: ReactNode; children: ReactN
 export default function DirectionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { height: screenH } = useWindowDimensions();
+  const { height: screenH, width: screenW } = useWindowDimensions();
   const [sheetH, setSheetH] = useState(320);
   const focused = useIsFocused();
   const reduceMotion = useReducedMotion();
@@ -328,7 +328,10 @@ export default function DirectionsScreen() {
       : null;
   // Following: the car about 70% down the map (DESIGN 2.3), more road ahead.
   const barPad = 110 + insets.bottom;
-  const followTopPad = following ? Math.round(0.4 * screenH + barPad) : 0;
+  // Held sideways there is no room for that much padding (the map would shrink to nothing),
+  // so only nudge the car a little below centre.
+  const landscape = screenW > screenH;
+  const followTopPad = following ? (landscape ? Math.round(0.25 * screenH) : Math.round(0.4 * screenH + barPad)) : 0;
   const stoppedFallback = <StoppedSheet bottomInset={insets.bottom} onOpenMaps={openMaps} onEnd={g.end} />;
 
   return (

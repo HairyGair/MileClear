@@ -36,7 +36,7 @@ const HERO_HEIGHT_EMAIL = 190;
 export default function LoginScreen() {
   const { login, loginWithApple, loginWithGoogle } = useAuth();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [mode, setMode] = useState<"choose" | "email">("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -100,7 +100,10 @@ export default function LoginScreen() {
     setMode("choose");
   };
 
-  const heroHeight = (mode === "email" ? HERO_HEIGHT_EMAIL : HERO_HEIGHT) + insets.top;
+  // Held sideways the picture would fill the screen, so shrink it there only.
+  const baseHero = mode === "email" ? HERO_HEIGHT_EMAIL : HERO_HEIGHT;
+  const landscape = screenWidth > screenHeight;
+  const heroHeight = (landscape ? Math.min(baseHero, 130) : baseHero) + insets.top;
 
   return (
     <KeyboardAvoidingView

@@ -3,7 +3,7 @@
 // before the first use. Solid panels, 56 pt buttons.
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, Linking, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NavigationRoute } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, nav, radii, spacing } from "../../lib/theme";
@@ -67,6 +67,8 @@ export function PreviewSheet(props: {
   onHeight?: (h: number) => void;
 }) {
   const [about, setAbout] = useState(false);
+  // Held sideways the screen is ~375pt tall: cap the sheet and let it scroll.
+  const { height: winH } = useWindowDimensions();
   const [retryReady, setRetryReady] = useState(true);
   useEffect(() => {
     if (props.error !== "TOO_MANY_REQUESTS") return;
@@ -146,16 +148,18 @@ export function PreviewSheet(props: {
 
   return (
     <View
-      style={[s.sheet, { paddingBottom: props.bottomInset + spacing.lg }]}
+      style={[s.sheet, { paddingBottom: props.bottomInset + spacing.lg, maxHeight: Math.round(winH * 0.9) }]}
       onLayout={(e) => props.onHeight?.(Math.round(e.nativeEvent.layout.height))}
     >
-      {props.destinationLabel && (
-        <Text style={s.dest} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.heading}>
-          {props.destinationLabel}
-        </Text>
-      )}
-      {body}
-      <ReportLink onPress={props.onReport} />
+      <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: spacing.md }} bounces={false} showsVerticalScrollIndicator={false}>
+        {props.destinationLabel && (
+          <Text style={s.dest} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.heading}>
+            {props.destinationLabel}
+          </Text>
+        )}
+        {body}
+        <ReportLink onPress={props.onReport} />
+      </ScrollView>
       <Modal supportedOrientations={["portrait", "landscape"]} visible={about} transparent animationType="fade" onRequestClose={() => setAbout(false)}>
         <View style={s.dim}>
           <View style={[s.sheet, s.modalSheet, { paddingBottom: props.bottomInset + spacing.lg }]}>
