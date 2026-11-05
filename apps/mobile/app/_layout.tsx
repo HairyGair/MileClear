@@ -1,7 +1,7 @@
 import "react-native-gesture-handler";
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, LogBox, ScrollView, StyleSheet, Alert, AppState, Linking, useColorScheme } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar, setStatusBarStyle } from "expo-status-bar";
@@ -780,9 +780,15 @@ function RootNavigator() {
   // the skeleton overlay. 21 May 2026 retention investigation.
   const showLoading = isLoading || (isAuthenticated && (!onboardingChecked || firstRun === "checking"));
 
+  // Landscape: the notch and rounded corners sit on the left and right edges.
+  // Pad the whole navigator so no screen draws under them. Both are 0 in
+  // portrait, so portrait is unchanged.
+  const sideInsets = useSafeAreaInsets();
+
   return (
     <>
       <LightStatusBar />
+      <View style={{ flex: 1, backgroundColor: colors.bg, paddingLeft: sideInsets.left, paddingRight: sideInsets.right }}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -913,6 +919,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/legal" options={{ headerShown: false }} />
         <Stack.Screen name="settings/business" options={{ headerShown: false }} />
       </Stack>
+      </View>
       {/* Loading overlay - covers Stack while auth/onboarding resolves.
           Mirrors the dashboard's own skeleton layout so the transition from
           auth-loading -> dashboard-loading -> dashboard is visually

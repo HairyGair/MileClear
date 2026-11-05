@@ -18,11 +18,13 @@
 //
 // Anything else (`visible`, `onRequestClose`, children) passes through.
 //
-// Don't add a backdrop, close button, or content wrapper here — modal
+// The only wrapper here is a layout-neutral View that pads the notch side in
+// landscape. Don't add a backdrop, close button, or other chrome here — modal
 // content varies too widely (full-screen forms, bottom sheets, alerts,
 // scorecards). Callers build their own inner View / chrome.
 
-import { Modal } from "react-native";
+import { Modal, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ComponentProps, ReactNode } from "react";
 
 type ModalProps = ComponentProps<typeof Modal>;
@@ -52,6 +54,8 @@ export function AppModal({
   children,
   rest,
 }: AppModalProps) {
+  // Landscape: keep the sheet clear of the notch (insets are 0 in portrait).
+  const insets = useSafeAreaInsets();
   return (
     <Modal
       supportedOrientations={["portrait", "landscape"]}
@@ -63,7 +67,7 @@ export function AppModal({
       statusBarTranslucent
       {...rest}
     >
-      {children}
+      <View style={{ flex: 1, paddingLeft: insets.left, paddingRight: insets.right }}>{children}</View>
     </Modal>
   );
 }
