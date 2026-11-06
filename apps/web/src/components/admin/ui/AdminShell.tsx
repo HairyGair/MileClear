@@ -66,10 +66,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
     setOpen(false);
   }, [pathname]);
 
-  // "/" jumps to the user search; Escape closes the drawer.
+  // Ctrl+K (Cmd+K on a Mac) jumps to the user search; Escape closes the
+  // drawer. No single-key shortcut, so speech input and stray key presses
+  // can't trigger it (WCAG 2.1.4).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTyping(document.activeElement)) {
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && !isTyping(document.activeElement)) {
         e.preventDefault();
         searchRef.current?.focus();
       } else if (e.key === "Escape" && open) {
@@ -145,7 +147,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             Back to my dashboard
           </Link>
           <p>
-            Press <kbd>/</kbd> to find a user
+            Press <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>⌘</kbd>+<kbd>K</kbd> on a Mac) to find a user
           </p>
         </div>
       </aside>
