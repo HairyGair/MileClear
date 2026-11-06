@@ -181,7 +181,7 @@ function RuleCard({
         <Switch
           value={isEnabled}
           onValueChange={onToggle}
-          trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+          trackColor={{ false: "#708096", true: "rgba(245, 166, 35, 0.4)" }}
           thumbColor={isEnabled ? AMBER : TEXT_2}
           accessibilityLabel={`${rule.name} ${isEnabled ? "enabled" : "disabled"}, tap to toggle`}
         />

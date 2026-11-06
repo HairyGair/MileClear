@@ -126,7 +126,7 @@ export function RecordingSheet({
               value={on}
               onValueChange={toggle}
               disabled={busy}
-              trackColor={{ false: "#374151", true: colors.amber }}
+              trackColor={{ false: "#708096", true: colors.amber }}
               thumbColor="#fff"
               ios_backgroundColor="#374151"
               accessibilityRole="switch"

@@ -97,7 +97,7 @@ function PaidWeekBehind() {
               value={row.inArrears}
               onValueChange={(v) => void toggle(row, v)}
               disabled={saving !== null}
-              trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+              trackColor={{ false: "#708096", true: "rgba(245, 166, 35, 0.4)" }}
               thumbColor={row.inArrears ? AMBER : TEXT_2}
               accessibilityLabel={`${PLATFORM_LABELS[row.platform] ?? row.platform} pays a week behind`}
             />

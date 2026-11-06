@@ -292,7 +292,7 @@ export default function WorkScheduleScreen() {
                     <Switch
                       value={slot.enabled}
                       onValueChange={() => toggleSlotEnabled(day)}
-                      trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+                      trackColor={{ false: "#708096", true: "rgba(245, 166, 35, 0.4)" }}
                       thumbColor={slot.enabled ? AMBER : TEXT_2}
                       accessibilityLabel={`${dayName(day)} schedule ${slot.enabled ? "enabled" : "disabled"}`}
                     />
@@ -396,7 +396,7 @@ export default function WorkScheduleScreen() {
               <Switch
                 value={recordOnly}
                 onValueChange={(v) => handleSettingToggle("schedule_record_only", v)}
-                trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+                trackColor={{ false: "#708096", true: "rgba(245, 166, 35, 0.4)" }}
                 thumbColor={recordOnly ? AMBER : TEXT_2}
                 accessibilityLabel="Only record drives during work hours"
               />
@@ -422,7 +422,7 @@ export default function WorkScheduleScreen() {
                 <Switch
                   value={autoClassify}
                   onValueChange={(v) => handleSettingToggle("schedule_auto_classify", v)}
-                  trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+                  trackColor={{ false: "#708096", true: "rgba(245, 166, 35, 0.4)" }}
                   thumbColor={autoClassify ? AMBER : TEXT_2}
                   accessibilityLabel="Mark trips during work hours as Business"
                 />
@@ -440,7 +440,7 @@ export default function WorkScheduleScreen() {
                 <Switch
                   value={autoMode}
                   onValueChange={(v) => handleSettingToggle("schedule_auto_mode", v)}
-                  trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+                  trackColor={{ false: "#708096", true: "rgba(245, 166, 35, 0.4)" }}
                   thumbColor={autoMode ? AMBER : TEXT_2}
                   accessibilityLabel="Auto-switch dashboard to Work mode during scheduled hours"
                 />
@@ -458,7 +458,7 @@ export default function WorkScheduleScreen() {
                 <Switch
                   value={reminder}
                   onValueChange={(v) => handleSettingToggle("schedule_reminder", v)}
-                  trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+                  trackColor={{ false: "#708096", true: "rgba(245, 166, 35, 0.4)" }}
                   thumbColor={reminder ? AMBER : TEXT_2}
                   accessibilityLabel="Shift reminder notification 10 minutes before scheduled start"
                 />

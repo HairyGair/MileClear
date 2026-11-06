@@ -1167,7 +1167,7 @@ export default function DriveDetectionDiagnosticsScreen() {
             accessibilityLabel="ClearTrack engine"
             onValueChange={handleToggleNative}
             disabled={busy || (!CAN_RUN_JS_ENGINE && nativeOn)}
-            trackColor={{ true: AMBER, false: "#3f3f46" }}
+            trackColor={{ true: AMBER, false: "#708096" }}
             thumbColor="#fff"
           />
         </View>

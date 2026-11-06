@@ -308,7 +308,7 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
                   <Switch
                     value={includeEarnings}
                     onValueChange={setIncludeEarnings}
-                    trackColor={{ true: colors.amber, false: colors.surfaceBorder }}
+                    trackColor={{ true: colors.amber, false: "#708096" }}
                     accessibilityLabel="Include earnings"
                   />
                 </View>

@@ -178,7 +178,7 @@ export default function TripSplitScreen() {
               <Switch
                 value={enabled.has(s.timestamp)}
                 onValueChange={() => toggle(s.timestamp)}
-                trackColor={{ false: "rgba(255,255,255,0.1)", true: AMBER }}
+                trackColor={{ false: "#708096", true: AMBER }}
                 thumbColor="#fff"
                 accessibilityLabel={`Split at ${formatTime(s.timestamp)}`}
               />

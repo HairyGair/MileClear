@@ -103,7 +103,7 @@ export function HubHelpList() {
               value={on}
               onValueChange={toggle}
               disabled={saving}
-              trackColor={{ false: "#374151", true: colors.green }}
+              trackColor={{ false: "#708096", true: colors.green }}
               thumbColor="#fff"
               ios_backgroundColor="#374151"
               accessibilityRole="switch"

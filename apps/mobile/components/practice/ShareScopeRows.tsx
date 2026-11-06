@@ -41,7 +41,7 @@ function Row({
             haptic("selection");
             onChange?.(v);
           }}
-          trackColor={{ true: colors.amber, false: "rgba(255,255,255,0.10)" }}
+          trackColor={{ true: colors.amber, false: "#708096" }}
           thumbColor={value ? colors.bg : undefined}
           accessibilityLabel={`${label}, ${value ? "shared" : "not shared"}`}
         />

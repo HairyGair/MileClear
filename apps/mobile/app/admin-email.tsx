@@ -129,7 +129,7 @@ export default function AdminEmailScreen() {
                 <Switch
                   value={onlyInactive}
                   onValueChange={setOnlyInactive}
-                  trackColor={{ false: "#1f2937", true: "rgba(245,166,35,0.4)" }}
+                  trackColor={{ false: "#708096", true: "rgba(245,166,35,0.4)" }}
                   thumbColor={onlyInactive ? AMBER : TEXT_3}
                   accessibilityLabel="Only send to inactive users"
                   accessibilityRole="switch"
