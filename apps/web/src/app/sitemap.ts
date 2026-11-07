@@ -51,6 +51,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/hmrc-mileage-rates`, lastModified: new Date("2026-06-08") },
     { url: `${BASE_URL}/ev-tax-relief`, lastModified: new Date("2026-10-25") },
     { url: `${BASE_URL}/ev-mileage-tracker`, lastModified: new Date("2026-10-25") },
+    { url: `${BASE_URL}/ev-pay-per-mile-tax`, lastModified: new Date("2026-11-06") },
     { url: `${BASE_URL}/business-mileage-guide`, lastModified: new Date("2026-10-25") },
     { url: `${BASE_URL}/what-counts-as-business-mileage`, lastModified: new Date("2026-10-02") },
     { url: `${BASE_URL}/mtd-itsa-software-for-sole-traders`, lastModified: new Date("2026-11-02") },

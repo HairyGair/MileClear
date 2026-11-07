@@ -485,6 +485,7 @@ export default function EvMileageTracker() {
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
               {[
                 { href: "/ev-tax-relief", label: "EV Tax Relief Guide" },
+                { href: "/ev-pay-per-mile-tax", label: "Pay-Per-Mile Tax (eVED)" },
                 { href: "/self-employed-mileage-tracker", label: "Self-Employed Drivers" },
                 { href: "/uber-mileage-tracker", label: "Uber Mileage Tracker" },
                 { href: "/#features", label: "All Features" },
